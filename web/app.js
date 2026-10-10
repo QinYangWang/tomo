@@ -113,11 +113,14 @@ const CTX = {
   home: { icon: "add", tip: "新建面板", run: () => newPanel() },
   chat: { icon: "search", tip: "搜索聊天记录", run: () => searchHistory() },
   projects: { icon: "sidebar", tip: "项目列表", run: () => toggleDrawer() },
+  settings: { icon: "back", tip: "返回", run: () => setBack() },
 };
-const VIEWS = Object.keys(CTX);
+const VIEWS = ["home", "chat", "projects"];
 function go(v) {
   view = v;
-  localStorage.view = v;
+  if (VIEWS.includes(v)) localStorage.view = v;
+  $("setBtn").classList.toggle("on", v === "settings");
+  if (v === "settings") renderSettings();
   for (const s of document.querySelectorAll(".view")) s.classList.toggle("on", s.id === `v-${v}`);
   for (const b of $("dock").querySelectorAll("button")) b.classList.toggle("on", b.dataset.view === v);
   $("ctxBtn").innerHTML = ic(CTX[v].icon);
@@ -134,7 +137,7 @@ function go(v) {
 }
 for (const b of $("dock").querySelectorAll("button")) b.onclick = () => go(b.dataset.view);
 $("ctxBtn").onclick = () => CTX[view].run();
-$("setBtn").onclick = () => openSettings();
+$("setBtn").onclick = () => (view === "settings" ? go(setFrom) : openSettings());
 
 // ---------- chat ----------
 let current = "", chatConv = "home", ws, live = null, work = null, typing = null, convs = [];
@@ -329,12 +332,8 @@ async function renderHome() {
   $("today").textContent = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
   const [S, sch, mem, ps] = await Promise.all([api("/api/settings"), api("/api/schedules"), api("/api/memories"), api("/api/panels")]);
   const out = [];
-  const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
-  const connected = S.channels.filter((c) => c.status.state === "connected");
-  const cta = (go, icon, title, sub) => `<div class="panel full cta click" data-go="${go}"><span class="tint">${ic(icon, 20)}</span><div class="grow"><div class="eyebrow">下一步</div><div class="ctaTitle serif">${title}</div><div class="sub">${sub}</div></div><span class="arrow">${ic("right", 18)}</span></div>`;
-  if (!hasKey) out.push(cta("settings:models", "ai", "接上一个 AI 模型", "填任意一家的 API key，Tomo 就能开始干活"));
-  else if (!connected.length) out.push(cta("settings:channels", "plug", "连上一个消息平台", "Telegram、Discord 或 Slack，填 token 就能上线"));
-  else if (!S.owners.length) out.push(cta("settings:profile", "user", "配对你的账号", "让机器人认出你，私聊会进 Home 对话"));
+  const who = S.profile?.nickname || S.profile?.name;
+  if (who) $("hello").textContent += `，${who}`;
 
   // panels Tomo built
   ps.forEach((p, i) => out.push(panelCard(p, TINTS[i % TINTS.length])));
@@ -343,7 +342,7 @@ async function renderHome() {
   const next = sch[0];
   out.push(`<div class="panel click" data-go="settings:schedules"><div class="ph"><span class="tint t-linen">${ic("clock", 18)}</span><h3>接下来</h3></div>${next ? `<div class="big">${esc(when(next.next_run))}</div><div class="line">${esc(next.title)}</div><div class="pf">共 ${sch.length} 个定时任务</div>` : `<div class="line muted">没有定时任务</div><div class="pf">在对话里说「每天早上 8 点提醒我…」</div>`}</div>`);
   out.push(`<div class="panel click" data-go="settings:memory"><div class="ph"><span class="tint t-linen">${ic("brain", 18)}</span><h3>最近记住的</h3></div>${mem.length ? mem.slice(0, 3).map((m) => `<div class="line">${esc(m.content)}</div>`).join("") + `<div class="pf">共 ${mem.length} 条 · 最近 ${ago(mem[0].updated_at)}</div>` : `<div class="line muted">还没有记忆。聊得越多，Tomo 越懂你。</div>`}</div>`);
-  out.push(`<div class="panel click" data-go="settings:channels"><div class="ph"><span class="tint t-linen">${ic("plug", 18)}</span><h3>连接</h3></div><div class="chips">${S.channels.map((c) => `<span class="chip">${ic(c.id, 14)}${CH[c.id].label}<span class="dot ${c.enabled ? dotCls(c.status.state) : ""}"></span></span>`).join("")}</div><div class="pf">${ic("ai", 14)}${esc(S.model.modelId)}</div></div>`);
+  out.push(`<div class="panel click" data-go="settings:accounts"><div class="ph"><span class="tint t-linen">${ic("plug", 18)}</span><h3>连接</h3></div><div class="chips">${S.channels.map((c) => `<span class="chip">${ic(c.id, 14)}${CH[c.id].label}<span class="dot ${c.enabled ? dotCls(c.status.state) : ""}"></span></span>`).join("")}</div><div class="pf">${ic("ai", 14)}${esc(S.model.modelId)}</div></div>`);
   if (!ps.length) out.push(`<div class="panel click" data-new="1" style="border:1.5px dashed var(--ash);box-shadow:none;background:none"><div class="ph"><span class="tint t-linen">${ic("add", 18)}</span><h3>新建面板</h3></div><div class="line muted">告诉 Tomo 想在这里看到什么：比特币价格、这周的待办、某个网站的更新…</div></div>`);
 
   $("panels").innerHTML = out.join("");
@@ -626,12 +625,13 @@ $("sheetClose").onclick = $("scrim").onclick = closeSheet;
 $("sheetBack").onclick = () => { stack.pop(); drawSheet(); };
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("sheet").hidden) closeSheet();
+  else if (e.key === "Escape" && view === "settings" && !e.target.closest?.("input, textarea")) setBack();
   if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); go("chat"); searchHistory(); }
 });
 const flash = (el, text, ok) => { el.textContent = text; el.className = `msg ${ok ? "ok" : "err"}`; };
 const redraw = () => (redrawFn ? redrawFn() : drawSheet());
 
-// ---------- settings ----------
+// ---------- settings: a page of its own (root list → sub-pages, back on the top-left button) ----------
 const CH = {
   telegram: { label: "Telegram", fields: { token: "Bot Token" }, steps: ["Telegram 里找 @BotFather，发送 /newbot", "按提示起名，把它给的 token 填到这里"] },
   discord: { label: "Discord", fields: { token: "Bot Token" }, steps: ["Discord Developer Portal → New Application → Bot → Reset Token", "同一页打开 Message Content Intent", "OAuth2 → URL Generator 勾 bot，用生成的链接把机器人拉进服务器"] },
@@ -640,72 +640,85 @@ const CH = {
 const STATE = { connected: ["已连接", "ok"], connecting: ["连接中", "warn"], error: ["连接失败", "err"], off: ["未连接", ""] };
 const dotCls = (s) => STATE[s]?.[1] ?? "";
 const PAGES = {
-  profile: ["资料", "user", () => renderProfile],
+  profile: ["个人资料", "user", () => renderProfile],
   schedules: ["定时任务", "clock", () => renderSchedules],
-  channels: ["已连接账号", "plug", () => renderChannels],
+  accounts: ["账户", "link", () => renderAccounts],
   models: ["AI 模型", "ai", () => renderModels],
   memory: ["记忆", "brain", () => renderMemory],
   skills: ["技能", "skill", () => renderSkills],
   security: ["安全", "lock", () => renderSecurity],
+  about: ["关于", "info", () => renderAbout],
 };
-const GROUPS = [["profile", "schedules"], ["channels", "models"], ["memory", "skills"], ["security"]];
+const GROUPS = [["profile", "schedules", "accounts", "models"], ["memory", "skills"], ["security", "about"]];
+const PROFILE = [
+  [["name", "姓名", "你的名字"], ["nickname", "昵称", "Tomo 应该怎么称呼你？"], ["birthday", "生日", "例如：1999-01-03"]],
+  [["email", "邮箱", "you@example.com"], ["phone", "电话", "+86 138 0000 0000"], ["home", "住址", "城市或详细地址"], ["work", "工作", "职位 · 公司"]],
+  [["household", "家庭", "例如：伴侣，2 个孩子"], ["interests", "兴趣", "例如：设计、木工"], ["pets", "宠物", "例如：叫 Max 的狗"]],
+];
+const ready = (p) => p.key.set || p.fromEnv;
+const chHasToken = (c) => Object.keys(CH[c.id].fields).every((f) => c.fields[f]?.last4 || c.fields[f]?.fromEnv);
 async function logout() { await api("/api/auth/logout", { method: "POST" }); token = localStorage.token = ""; location.reload(); }
 
-async function openSettings(page) {
-  const S = await api("/api/settings");
-  const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
-  const conn = S.channels.filter((c) => c.status.state === "connected").map((c) => CH[c.id].label);
-  const vals = { profile: S.owners.length ? `${S.owners.length} 个账号` : "未配对", channels: conn.join("、") || "未连接", models: hasKey ? esc(S.model.modelId) : "未设置" };
+let setStack = [], setFrom = "home", acctTab = "all";
+function openSettings(page, arg) {
+  if (view !== "settings") setFrom = view;
+  setStack = page && (PAGES[page] || page === "account") ? [{ k: page, arg }] : [];
+  go("settings");
+}
+function pushSet(k, arg) { setStack.push({ k, arg }); renderSettings(); }
+function setBack() {
+  if (setStack.length) { setStack.pop(); return renderSettings(); }
+  go(setFrom);
+}
+const setRedraw = () => renderSettings(true);
 
-  if (desk.matches) {
-    page ??= !hasKey ? "models" : !conn.length ? "channels" : "profile";
-    return sheet("设置", (body) => {
-      body.innerHTML = `<nav class="setNav">${GROUPS.map((g) => g.map((k) => `<button class="dItem" data-k="${k}">${ic(PAGES[k][1], 18)}<span class="grow">${PAGES[k][0]}</span></button>`).join("")).join('<div class="sep"></div>')}<div class="sep"></div><button class="dItem" id="logoutD" style="color:var(--err)">${ic("logout", 18)}<span class="grow">退出登录</span></button></nav><div class="setPane" id="setPane"></div>`;
-      const show = (k) => {
-        page = k;
-        body.querySelectorAll("[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === k));
-        const pane = $("setPane");
-        pane.innerHTML = `<h3 class="serif">${PAGES[k][0]}</h3><div></div>`;
-        pane.scrollTop = 0;
-        PAGES[k][2]()(pane.lastElementChild);
-      };
-      body.querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => show(b.dataset.k)));
-      $("logoutD").onclick = logout;
-      show(page);
-      redrawFn = () => show(page);
-    }, { split: true });
+async function renderSettings(keepScroll) {
+  const root = $("setRoot"), top = setStack.at(-1), y = $("v-settings").scrollTop;
+  if (!top) await renderSetHome(root);
+  else {
+    const title = top.k === "account" ? top.arg.label : PAGES[top.k][0];
+    root.innerHTML = `<h1 class="setTitle serif">${esc(title)}</h1><div class="setBody"></div>`;
+    await (top.k === "account" ? renderAccount : PAGES[top.k][2]())(root.lastElementChild, top.arg);
   }
-  sheet("设置", (body) => {
-    body.innerHTML = GROUPS.map((g) => `<div class="group">${g.map((k) => `<button class="item" data-k="${k}">${ic(PAGES[k][1], 20)}<span class="grow">${PAGES[k][0]}</span><span class="val">${vals[k] ?? ""}</span><span class="arrow">${ic("right", 16)}</span></button>`).join("")}</div>`).join("") + `<div class="group"><button class="item danger" id="logout">退出登录</button></div>`;
-    body.querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => sheet(PAGES[b.dataset.k][0], PAGES[b.dataset.k][2](), { push: true })));
-    $("logout").onclick = logout;
-  });
-  if (page && PAGES[page]) sheet(PAGES[page][0], PAGES[page][2](), { push: true });
+  $("v-settings").scrollTop = keepScroll ? y : 0;
+}
+
+async function renderSetHome(root) {
+  const [S, mem] = await Promise.all([api("/api/settings"), api("/api/memories")]);
+  const P = S.profile ?? {};
+  const who = P.nickname || P.name || "";
+  const hasKey = S.providers.some(ready);
+  const live = S.channels.filter((c) => c.enabled && c.status.state === "connected");
+  const vals = {
+    profile: who ? "" : "未填写",
+    accounts: `${live.length + S.providers.filter(ready).length || "未连接"}${live.length + S.providers.filter(ready).length ? " 个" : ""}`,
+    models: hasKey ? esc(S.model.modelId) : "未设置",
+    memory: mem.length ? `${mem.length} 条` : "",
+  };
+  root.innerHTML = `
+    <button class="setHead" data-k="profile">
+      <span class="avatar">${who ? esc([...who][0].toUpperCase()) : ic("user", 26)}</span>
+      <span class="grow"><span class="setName serif">${esc(who || "你好")}</span><span class="setSub">${esc(P.email || (who ? P.work || "" : "填写资料，让 Tomo 更懂你"))}</span></span>
+    </button>
+    <button class="statCard" data-k="${hasKey ? "models" : "accounts"}">
+      <span class="statTop"><span class="serif">Tomo</span><span class="statModel">${hasKey ? `${ic("ai", 14)}${esc(S.model.modelId)}` : "还没接上 AI 模型"}</span></span>
+      <span class="statChips">${S.channels.map((c) => { const on = c.enabled && chHasToken(c); return `<span class="chip ${on ? "" : "dim"}">${ic(c.id, 14)}${CH[c.id].label}<span class="dot ${on ? dotCls(c.status.state) : ""}"></span></span>`; }).join("")}</span>
+    </button>
+    ${GROUPS.map((g) => `<div class="group">${g.map((k) => `<button class="item" data-k="${k}">${ic(PAGES[k][1], 20)}<span class="grow">${PAGES[k][0]}</span><span class="val">${vals[k] ?? ""}</span><span class="arrow">${ic("right", 16)}</span></button>`).join("")}</div>`).join("")}
+    <div class="group logoutRow"><button class="item" id="logout">${ic("logout", 20)}<span class="grow">退出登录</span></button></div>`;
+  root.querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => pushSet(b.dataset.k)));
+  $("logout").onclick = logout;
 }
 
 async function renderProfile(body) {
   const S = await api("/api/settings");
-  const env = new Set(S.ownersFromEnv);
-  body.innerHTML = `
-    <div class="gtitle">你的账号</div>
-    <div class="group">${S.owners.length ? S.owners.map((o) => `<div class="item"><span class="grow"><code>${esc(o)}</code></span>${env.has(o) ? `<span class="badge">环境变量</span>` : `<button class="dangerBtn" data-o="${esc(o)}">移除</button>`}</div>`).join("") : `<div class="item muted">还没有配对的账号</div>`}</div>
-    <p class="note">配对后，你在各平台私聊 Tomo 都会进同一个 Home 对话；别人的私聊会被忽略。</p>
-    <div class="group"><div class="field"><div class="btns"><button class="primary" id="pair">生成配对码</button></div><div id="pairBox" hidden><div class="code" id="code"></div><p class="note" style="margin:0;text-align:center">10 分钟内，用你的账号私聊机器人发送 <code id="cmd"></code></p></div></div></div>`;
-  body.querySelectorAll("[data-o]").forEach((b) => (b.onclick = async () => { await api(`/api/settings/owners/${encodeURIComponent(b.dataset.o)}`, { method: "DELETE" }); redraw(); }));
-  $("pair").onclick = async () => {
-    const r = await api("/api/settings/pair", { method: "POST" });
-    $("pairBox").hidden = false;
-    $("code").textContent = r.code;
-    $("cmd").textContent = `/pair ${r.code}`;
-    const n = S.owners.length;
-    const t = setInterval(async () => {
-      if ($("sheet").hidden || !$("code")) return clearInterval(t);
-      const s = await api("/api/settings");
-      if (s.owners.length !== n) { clearInterval(t); toast("配对成功"); redraw(); }
-    }, 3000);
-    setTimeout(() => clearInterval(t), 600_000);
-  };
-  body.insertAdjacentHTML("beforeend", aboutHtml());
+  const P = S.profile ?? {};
+  body.innerHTML = PROFILE.map((g) => `<div class="group">${g.map(([k, label, ph]) => `<label class="item kv"><span class="k">${label}</span><input data-p="${k}" value="${esc(P[k] ?? "")}" placeholder="${esc(ph)}" autocomplete="off" /></label>`).join("")}</div>`).join("") +
+    `<p class="note">Tomo 每次回答都会参考这些信息。只保存在你自己的服务器上。</p>`;
+  body.querySelectorAll("[data-p]").forEach((i) => (i.onchange = async () => {
+    await api("/api/settings/profile", { method: "PUT", body: { [i.dataset.p]: i.value } });
+    toast("已保存");
+  }));
 }
 
 async function renderSchedules(body) {
@@ -713,72 +726,124 @@ async function renderSchedules(body) {
   body.innerHTML = list.length
     ? `<div class="group">${list.map((s) => `<div class="item"><span class="grow">${esc(s.title)}<div class="muted small">${s.next_run ? esc(when(s.next_run)) : "已结束"} · ${esc({ once: "一次", interval: "间隔", daily: "每天", cron: "cron" }[s.kind] ?? s.kind)} ${esc(s.spec)}</div></span><button class="dangerBtn" data-s="${esc(s.id)}">取消</button></div>`).join("")}</div>`
     : `<div class="empty">没有定时任务。<br/>在对话里说「每个工作日早上 8 点给我发今天的安排」。</div>`;
-  body.querySelectorAll("[data-s]").forEach((b) => (b.onclick = async () => { await api(`/api/schedules/${encodeURIComponent(b.dataset.s)}`, { method: "DELETE" }); toast("已取消"); redraw(); }));
+  body.querySelectorAll("[data-s]").forEach((b) => (b.onclick = async () => { await api(`/api/schedules/${encodeURIComponent(b.dataset.s)}`, { method: "DELETE" }); toast("已取消"); setRedraw(); }));
 }
 
-async function renderChannels(body) {
+// ---- 账户: messaging platforms and AI providers in one list, each opens its own page ----
+const mono = (label) => `<span class="logo mono">${esc(label[0])}</span>`;
+async function renderAccounts(body) {
   const S = await api("/api/settings");
-  body.innerHTML = `<p class="note" style="margin:4px 4px 6px">保存后立刻连接，不用重启。</p>` + S.channels.map((c) => {
-    const meta = CH[c.id];
-    const hasToken = Object.keys(meta.fields).every((f) => c.fields[f]?.last4 || c.fields[f]?.fromEnv);
-    const [st, cls] = !hasToken ? ["未设置", ""] : !c.enabled ? ["已关闭", ""] : STATE[c.status.state] ?? ["", ""];
-    const on = hasToken && c.enabled;
-    return `<div class="group" data-c="${c.id}">
-      <div class="item">${ic(c.id, 20)}<span class="grow"><strong>${meta.label}</strong> <span class="badge ${cls}">${st}</span></span>${hasToken ? `<input type="checkbox" class="toggle ${on && c.status.state !== "connected" ? "pending" : ""}" ${on ? "checked" : ""} aria-label="启用 ${meta.label}" />` : ""}</div>
+  const rows = [
+    ...S.channels.map((c) => {
+      const has = chHasToken(c), [st, cls] = !has ? ["", ""] : !c.enabled ? ["已关闭", ""] : STATE[c.status.state] ?? ["", ""];
+      return { tab: "channels", id: `channel:${c.id}`, label: CH[c.id].label, logo: `<span class="logo">${ic(c.id, 20)}</span>`, sub: "消息平台 · 私聊和群聊", right: has ? `<span class="badge ${cls}">${st}</span>` : `<span class="pillBtn">连接</span>` };
+    }),
+    ...S.providers.map((p) => ({ tab: "providers", id: `provider:${p.id}`, label: p.label, logo: mono(p.label), sub: S.model.provider === p.id && ready(p) ? "AI 模型 · 当前主模型" : "AI 模型", right: p.key.set ? `<span class="badge ok">····${esc(p.key.last4)}</span>` : p.fromEnv ? `<span class="badge">环境变量</span>` : `<span class="pillBtn">添加</span>` })),
+  ];
+  const tabs = [["all", "全部"], ["channels", "消息平台"], ["providers", "AI 模型"]];
+  body.innerHTML = `<div class="seg">${tabs.map(([k, l]) => `<button data-t="${k}" class="${acctTab === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    <div class="group">${rows.filter((r) => acctTab === "all" || r.tab === acctTab).map((r) => `<button class="item acct" data-a="${r.id}" data-l="${esc(r.label)}">${r.logo}<span class="grow"><span class="aName">${esc(r.label)}</span><span class="aSub">${r.sub}</span></span>${r.right}</button>`).join("")}</div>`;
+  body.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => { acctTab = b.dataset.t; setRedraw(); }));
+  body.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => pushSet("account", { id: b.dataset.a, label: b.dataset.l })));
+}
+async function renderAccount(body, { id }) {
+  const [kind, key] = id.split(":");
+  return kind === "channel" ? renderChannel(body, key) : renderProvider(body, key);
+}
+async function renderChannel(body, id) {
+  const S = await api("/api/settings");
+  const c = S.channels.find((x) => x.id === id), meta = CH[id];
+  const hasToken = chHasToken(c);
+  const [st, cls] = !hasToken ? ["未设置", ""] : !c.enabled ? ["已关闭", ""] : STATE[c.status.state] ?? ["", ""];
+  const on = hasToken && c.enabled;
+  body.innerHTML = `<div class="group">
+      <div class="item"><span class="logo">${ic(id, 20)}</span><span class="grow">状态 <span class="badge ${cls}">${st}</span></span>${hasToken ? `<input type="checkbox" class="toggle ${on && c.status.state !== "connected" ? "pending" : ""}" ${on ? "checked" : ""} aria-label="启用 ${meta.label}" />` : ""}</div>
       ${Object.entries(meta.fields).map(([f, label]) => {
         const v = c.fields[f] ?? {}, now = v.last4 ? `已保存 ····${esc(v.last4)}` : v.fromEnv ? "来自环境变量" : "";
         return `<div class="field"><label>${label} ${now ? `<span class="badge">${now}</span>` : ""}</label><input type="password" data-f="${f}" autocomplete="off" placeholder="${now ? "留空则不修改" : "粘贴 token"}" /></div>`;
       }).join("")}
-      <div class="field"><div class="btns"><button class="primary save">保存并连接</button><span class="msg ${c.status.state === "error" ? "err" : ""}">${c.status.state === "error" ? esc(c.status.error) : ""}</span></div>
-      <details><summary class="muted small">怎么拿 token</summary><ol class="steps">${meta.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></details></div>
-    </div>`;
-  }).join("");
-  body.querySelectorAll("[data-c]").forEach((g) => {
-    const id = g.dataset.c, btn = g.querySelector(".save"), msg = g.querySelector(".msg"), tg = g.querySelector(".toggle");
-    const save = async () => {
-      // Saving a token means "connect it"; the toggle only pauses a channel that already has one.
-      const b = { enabled: tg ? tg.checked : true };
-      g.querySelectorAll("[data-f]").forEach((i) => { if (i.value.trim()) b[i.dataset.f] = i.value.trim(); });
-      btn.disabled = true;
-      flash(msg, "连接中…", true);
-      const r = await api(`/api/settings/channels/${id}`, { method: "PUT", body: b });
-      if (r.error) { btn.disabled = false; return flash(msg, r.error); }
-      if (r.status.state === "connected") toast(`${CH[id].label} 已连接`);
-      redraw();
-    };
-    btn.onclick = save;
-    if (tg) tg.onchange = save;
+      <div class="field"><div class="btns"><button class="primary save">保存并连接</button><span class="msg ${c.status.state === "error" ? "err" : ""}">${c.status.state === "error" ? esc(c.status.error) : ""}</span></div></div>
+    </div>
+    <div class="gtitle">怎么拿 token</div><div class="group"><div class="field"><ol class="steps">${meta.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div></div>
+    <p class="note">保存后立刻连接，不用重启。连上后去「安全」配对你的聊天账号。</p>`;
+  const btn = body.querySelector(".save"), msg = body.querySelector(".msg"), tg = body.querySelector(".toggle");
+  const save = async () => {
+    // Saving a token means "connect it"; the toggle only pauses a channel that already has one.
+    const b = { enabled: tg ? tg.checked : true };
+    body.querySelectorAll("[data-f]").forEach((i) => { if (i.value.trim()) b[i.dataset.f] = i.value.trim(); });
+    btn.disabled = true;
+    flash(msg, "连接中…", true);
+    const r = await api(`/api/settings/channels/${id}`, { method: "PUT", body: b });
+    if (r.error) { btn.disabled = false; return flash(msg, r.error); }
+    if (r.status.state === "connected") toast(`${meta.label} 已连接`);
+    setRedraw();
+  };
+  btn.onclick = save;
+  if (tg) tg.onchange = save;
+}
+async function testProvider(id, msg) {
+  flash(msg, "测试中…", true);
+  const r = await api(`/api/settings/providers/${id}/test`, { method: "POST", body: {} });
+  r.ok ? flash(msg, `可以用 ✓ ${r.model}`, true) : flash(msg, r.error ?? "失败");
+  return r.ok;
+}
+async function renderProvider(body, id) {
+  const S = await api("/api/settings");
+  const p = S.providers.find((x) => x.id === id);
+  body.innerHTML = `<div class="group">
+      <div class="item">${mono(p.label)}<span class="grow">状态 ${p.key.set ? `<span class="badge ok">····${esc(p.key.last4)}</span>` : p.fromEnv ? `<span class="badge">环境变量</span>` : `<span class="badge">未设置</span>`}</span>${p.key.set ? `<button class="dangerBtn del">删除</button>` : ""}</div>
+      <div class="field"><label>API key</label><input type="password" autocomplete="off" placeholder="${p.key.set ? "输入新 key 替换" : "粘贴 API key"}" /><span class="muted small">${esc(p.hint)}</span></div>
+      <div class="field"><div class="btns"><button class="primary save">保存</button><button class="ghost test" ${ready(p) ? "" : "disabled"}>测试</button><span class="msg"></span></div></div>
+    </div>
+    <p class="note">key 加密保存在你的服务器上，这里只显示末四位。默认用哪个模型在「AI 模型」里选。</p>`;
+  const input = body.querySelector("input"), msg = body.querySelector(".msg");
+  body.querySelector(".save").onclick = async () => {
+    if (!input.value.trim()) return flash(msg, "先填 key");
+    const r = await api(`/api/settings/providers/${id}`, { method: "PUT", body: { key: input.value } });
+    if (r.error) return flash(msg, r.error);
+    input.value = "";
+    body.querySelector(".test").disabled = false;
+    // first key ever: make it the default so Tomo works right away
+    if (!S.providers.some(ready)) await useProviderAsDefault(id);
+    await testProvider(id, msg);
+  };
+  body.querySelector(".test").onclick = () => testProvider(id, msg);
+  body.querySelector(".del")?.addEventListener("click", async () => {
+    if (await alertDialog({ title: `删除 ${p.label} 的 key？`, body: "用这家模型的对话会停止工作，直到你换一家。", confirm: "删除", danger: true })) { await api(`/api/settings/providers/${id}`, { method: "DELETE" }); setRedraw(); }
   });
+}
+const CHAT_HINT = /research|image|live|computer|tts|audio|embed|search|batch|realtime|transcribe/i;
+async function useProviderAsDefault(id) {
+  const list = (await api(`/api/settings/models?provider=${encodeURIComponent(id)}`)).filter((m) => !CHAT_HINT.test(m.id));
+  if (!list.length) return null;
+  const m = list[0].id;
+  await api("/api/settings/model", { method: "PUT", body: { model: { provider: id, modelId: m }, smallModel: { provider: id, modelId: (list.find((x) => /mini|flash|haiku|small|lite/i.test(x.id)) ?? list[0]).id } } });
+  return m;
 }
 
 async function renderModels(body) {
   const S = await api("/api/settings");
-  const ready = (p) => p.key.set || p.fromEnv;
-  const anyKey = S.providers.some(ready);
-  const opts = (cur) => S.providers.map((p) => `<option value="${p.id}" ${ready(p) || p.id === cur ? "" : "disabled"}>${esc(p.label)}${ready(p) ? "" : "（先填 key）"}</option>`).join("");
-  const modelsHtml = `
-    <div class="gtitle">默认模型</div>
-    ${anyKey ? "" : `<p class="note" style="margin:8px 4px 0">先在下面填一家供应商的 key，这里才能选模型。</p>`}
-    <div class="group ${anyKey ? "" : "locked"}">
-      <div class="field"><label>主模型 · 对话</label><div class="row2"><select id="mp" ${anyKey ? "" : "disabled"}>${opts(S.model.provider)}</select><select id="mi" ${anyKey ? "" : "disabled"}></select></div></div>
-      <div class="field"><label>小模型 · 后台反思、子任务和面板刷新</label><div class="row2"><select id="sp" ${anyKey ? "" : "disabled"}>${opts(S.smallModel.provider)}</select><select id="si" ${anyKey ? "" : "disabled"}></select></div></div>
-      <div class="field"><div class="btns"><button class="primary" id="saveM" ${anyKey ? "" : "disabled"}>保存</button><span class="msg" id="mMsg"></span></div></div>
-    </div>`;
-  const keysHtml = `
-    <div class="gtitle">供应商 key</div>
-    <p class="note" style="margin:8px 4px 0">key 加密保存在你的服务器上，这里只显示末四位。</p>
-    ${S.providers.map((p) => `<div class="group" data-p="${p.id}">
-      <div class="item"><span class="grow"><strong>${esc(p.label)}</strong> ${p.key.set ? `<span class="badge ok">····${esc(p.key.last4)}</span>` : p.fromEnv ? `<span class="badge">环境变量</span>` : ""}</span>${p.key.set ? `<button class="dangerBtn del">删除</button>` : ""}</div>
-      <div class="field"><input type="password" autocomplete="off" placeholder="${p.key.set ? "输入新 key 替换" : "API key"}" /><div class="btns"><button class="primary save">保存</button><button class="ghost test" ${ready(p) ? "" : "disabled"}>测试</button><span class="msg"></span></div><span class="muted small">${esc(p.hint)}</span></div>
-    </div>`).join("")}`;
-  body.innerHTML = anyKey ? modelsHtml + keysHtml : keysHtml + modelsHtml;
+  const usable = S.providers.filter(ready);
+  if (!usable.length) {
+    body.innerHTML = `<div class="empty">还没有可用的模型。<br/>先在「账户」里添加一家 AI 供应商的 key。<div class="btns" style="justify-content:center;margin-top:14px"><button class="primary" id="toKeys">添加 key</button></div></div>`;
+    $("toKeys").onclick = () => { acctTab = "providers"; pushSet("accounts"); };
+    return;
+  }
+  const opts = usable.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join("");
+  body.innerHTML = `
+    <div class="group">
+      <div class="field"><label>主模型 · 对话</label><div class="row2"><select id="mp">${opts}</select><select id="mi"></select></div></div>
+      <div class="field"><label>小模型 · 后台反思、子任务和面板刷新</label><div class="row2"><select id="sp">${opts}</select><select id="si"></select></div></div>
+      <div class="field"><div class="btns"><button class="primary" id="saveM">保存</button><span class="msg" id="mMsg"></span></div></div>
+    </div>
+    <p class="note">只列出已经填了 key 的供应商。要加别家，去「账户」。</p>`;
   const fill = async (ps, is, want) => {
     const list = await api(`/api/settings/models?provider=${encodeURIComponent(ps.value)}`);
     is.innerHTML = list.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
     if (want && list.some((m) => m.id === want)) is.value = want;
   };
   for (const [ps, is, cur] of [[$("mp"), $("mi"), S.model], [$("sp"), $("si"), S.smallModel]]) {
-    ps.value = S.providers.some((p) => p.id === cur.provider) ? cur.provider : S.providers[0].id;
+    ps.value = usable.some((p) => p.id === cur.provider) ? cur.provider : usable[0].id;
     await fill(ps, is, cur.modelId);
     ps.onchange = () => fill(ps, is);
   }
@@ -786,26 +851,6 @@ async function renderModels(body) {
     const r = await api("/api/settings/model", { method: "PUT", body: { model: { provider: $("mp").value, modelId: $("mi").value }, smallModel: { provider: $("sp").value, modelId: $("si").value } } });
     r.error ? flash($("mMsg"), r.error) : (flash($("mMsg"), "已保存", true), toast(`主模型：${r.model.modelId}`));
   };
-  body.querySelectorAll(".group[data-p]").forEach((g) => {
-    const id = g.dataset.p, input = g.querySelector("input"), msg = g.querySelector(".msg");
-    const test = async () => {
-      flash(msg, "测试中…", true);
-      const r = await api(`/api/settings/providers/${id}/test`, { method: "POST", body: {} });
-      r.ok ? flash(msg, `可以用 ✓ ${r.model}`, true) : flash(msg, r.error ?? "失败");
-    };
-    g.querySelector(".save").onclick = async () => {
-      if (!input.value.trim()) return flash(msg, "先填 key");
-      const r = await api(`/api/settings/providers/${id}`, { method: "PUT", body: { key: input.value } });
-      if (r.error) return flash(msg, r.error);
-      input.value = "";
-      input.placeholder = "输入新 key 替换";
-      g.querySelector(".test").disabled = false;
-      await test();
-      if (!anyKey) setTimeout(redraw, 900);
-    };
-    g.querySelector(".test").onclick = test;
-    g.querySelector(".del")?.addEventListener("click", async () => { if (confirm("删除这个 key？")) { await api(`/api/settings/providers/${id}`, { method: "DELETE" }); redraw(); } });
-  });
 }
 
 async function renderMemory(body) {
@@ -820,7 +865,7 @@ async function renderMemory(body) {
   };
   let t;
   $("mq").oninput = () => { clearTimeout(t); t = setTimeout(load, 200); };
-  load();
+  await load();
 }
 
 async function renderSkills(body) {
@@ -830,12 +875,34 @@ async function renderSkills(body) {
     : `<div class="empty">还没有技能。<br/>Tomo 会把反复做的事沉淀成技能。</div>`;
 }
 
-function renderSecurity(body) {
-  body.innerHTML = `<div class="group">
-    <div class="field"><label>当前密码</label><input type="password" id="cur" autocomplete="current-password" /></div>
-    <div class="field"><label>新密码（至少 8 位）</label><input type="password" id="nxt" autocomplete="new-password" /></div>
-    <div class="field"><div class="btns"><button class="primary" id="chg">修改密码</button><span class="msg" id="pMsg"></span></div></div></div>
+async function renderSecurity(body) {
+  const S = await api("/api/settings");
+  const env = new Set(S.ownersFromEnv);
+  body.innerHTML = `
+    <div class="gtitle">配对的聊天账号</div>
+    <div class="group">${S.owners.length ? S.owners.map((o) => `<div class="item"><span class="grow"><code>${esc(o)}</code></span>${env.has(o) ? `<span class="badge">环境变量</span>` : `<button class="dangerBtn" data-o="${esc(o)}">移除</button>`}</div>`).join("") : `<div class="item muted">还没有配对的账号</div>`}
+      <div class="field"><div class="btns"><button class="ghost" id="pair">生成配对码</button></div><div id="pairBox" hidden><div class="code" id="code"></div><p class="note" style="margin:0;text-align:center">10 分钟内，用你的账号私聊机器人发送 <code id="cmd"></code></p></div></div></div>
+    <p class="note">配对后，你在各平台私聊 Tomo 都会进同一个 Home 对话；别人的私聊会被忽略。</p>
+    <div class="gtitle">网页登录密码</div>
+    <div class="group">
+      <div class="field"><label>当前密码</label><input type="password" id="cur" autocomplete="current-password" /></div>
+      <div class="field"><label>新密码（至少 8 位）</label><input type="password" id="nxt" autocomplete="new-password" /></div>
+      <div class="field"><div class="btns"><button class="primary" id="chg">修改密码</button><span class="msg" id="pMsg"></span></div></div></div>
     <p class="note">修改后，其他设备需要重新登录。</p>`;
+  body.querySelectorAll("[data-o]").forEach((b) => (b.onclick = async () => { await api(`/api/settings/owners/${encodeURIComponent(b.dataset.o)}`, { method: "DELETE" }); setRedraw(); }));
+  $("pair").onclick = async () => {
+    const r = await api("/api/settings/pair", { method: "POST" });
+    $("pairBox").hidden = false;
+    $("code").textContent = r.code;
+    $("cmd").textContent = `/pair ${r.code}`;
+    const n = S.owners.length;
+    const t = setInterval(async () => {
+      if (!$("code")) return clearInterval(t);
+      const s = await api("/api/settings");
+      if (s.owners.length !== n) { clearInterval(t); toast("配对成功"); setRedraw(); }
+    }, 3000);
+    setTimeout(() => clearInterval(t), 600_000);
+  };
   $("chg").onclick = async () => {
     const r = await api("/api/settings/password", { method: "PUT", body: { current: $("cur").value, next: $("nxt").value } });
     if (r.token) { token = localStorage.token = r.token; flash($("pMsg"), "已修改", true); $("cur").value = $("nxt").value = ""; }
@@ -843,14 +910,73 @@ function renderSecurity(body) {
   };
 }
 
-function aboutHtml() {
-  return `<div class="gtitle">关于</div><div class="group">
+function renderAbout(body) {
+  body.innerHTML = `<div class="group">
     <div class="item">${ic("sparkles", 20)}<span class="grow">Tomo</span><span class="val">个人 agent · Pi Durable + Bun</span></div>
-    <a class="item" href="https://github.com/QinYangWang/tomo" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><span class="grow">源代码</span><span class="arrow">${ic("right", 16)}</span></a></div>
+    <a class="item" href="https://github.com/QinYangWang/tomo" target="_blank" rel="noopener"><span class="grow">源代码</span><span class="arrow">${ic("right", 16)}</span></a></div>
     <p class="note">数据全部在你自己的服务器上：data/ 目录。备份时连同 secret.key 一起。</p>`;
 }
 
-
+// ---------- first-run guide: profile, then an AI provider ----------
+async function onboard(S) {
+  const P = S.profile ?? {};
+  let step = 0, pick = S.providers.find(ready)?.id ?? S.providers[0].id;
+  const el = $("onboard");
+  el.hidden = false;
+  const finish = async () => {
+    await api("/api/settings/onboarded", { method: "PUT", body: { done: true } });
+    el.hidden = true;
+    renderHome();
+  };
+  const dots = () => `<div class="obDots">${[0, 1].map((i) => `<span class="${i === step ? "on" : ""}"></span>`).join("")}</div>`;
+  const draw = () => {
+    if (step === 0) {
+      el.innerHTML = `<div class="obCard">${dots()}
+        <span class="obIcon">${ic("user", 26)}</span>
+        <h1 class="serif">先认识一下</h1>
+        <p class="muted">Tomo 会在每次对话里用到这些。之后可以在设置 → 个人资料里补充。</p>
+        <div class="group">
+          <label class="item kv"><span class="k">昵称</span><input id="obNick" value="${esc(P.nickname ?? "")}" placeholder="怎么称呼你？" /></label>
+          <label class="item kv"><span class="k">姓名</span><input id="obName" value="${esc(P.name ?? "")}" placeholder="你的名字" /></label>
+          <label class="item kv"><span class="k">工作</span><input id="obWork" value="${esc(P.work ?? "")}" placeholder="职位 · 公司" /></label>
+        </div>
+        <button class="primary big" id="obNext">下一步</button>
+        <button class="linkBtn" id="obSkip">跳过</button></div>`;
+      $("obNick").focus();
+      $("obNext").onclick = async () => {
+        await api("/api/settings/profile", { method: "PUT", body: { nickname: $("obNick").value, name: $("obName").value, work: $("obWork").value } });
+        step = 1; draw();
+      };
+      $("obSkip").onclick = () => { step = 1; draw(); };
+      return;
+    }
+    const p = S.providers.find((x) => x.id === pick);
+    el.innerHTML = `<div class="obCard">${dots()}
+      <span class="obIcon">${ic("ai", 26)}</span>
+      <h1 class="serif">接上一个 AI 模型</h1>
+      <p class="muted">Tomo 用你自己的 API key 思考。选一家，粘贴 key 就行。</p>
+      <div class="provGrid">${S.providers.map((x) => `<button data-pv="${x.id}" class="${x.id === pick ? "on" : ""}">${esc(x.label)}${ready(x) ? ic("tick", 14) : ""}</button>`).join("")}</div>
+      <div class="group"><div class="field"><input type="password" id="obKey" autocomplete="off" placeholder="${ready(p) ? "已保存，可直接完成或替换" : `${esc(p.label)} API key`}" /><span class="muted small">${esc(p.hint)}</span></div></div>
+      <span class="msg" id="obMsg"></span>
+      <button class="primary big" id="obGo">${ready(p) && S.model.provider === pick ? "完成" : "保存并测试"}</button>
+      <button class="linkBtn" id="obSkip">稍后在设置里配置</button></div>`;
+    el.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => { pick = b.dataset.pv; draw(); }));
+    $("obSkip").onclick = finish;
+    $("obGo").onclick = async () => {
+      const key = $("obKey").value.trim(), msg = $("obMsg");
+      if (!key && !ready(p)) return flash(msg, "先粘贴 key");
+      $("obGo").disabled = true;
+      if (key) {
+        const r = await api(`/api/settings/providers/${pick}`, { method: "PUT", body: { key } });
+        if (r.error) { $("obGo").disabled = false; return flash(msg, r.error); }
+      }
+      if (S.model.provider !== pick || !ready(p)) await useProviderAsDefault(pick);
+      if (!(await testProvider(pick, msg))) { $("obGo").disabled = false; S = await api("/api/settings"); return; }
+      setTimeout(finish, 700);
+    };
+  };
+  draw();
+}
 
 // ---------- boot ----------
 async function boot(firstRun) {
@@ -859,6 +985,6 @@ async function boot(firstRun) {
   const S = await api("/api/settings");
   const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
   go(firstRun || !hasKey ? "home" : VIEWS.includes(localStorage.view) ? localStorage.view : "home");
-  if (firstRun) openSettings("models");
+  if (!S.onboarded && (firstRun || !hasKey || !(S.profile?.nickname || S.profile?.name))) onboard(S);
 }
 gate();

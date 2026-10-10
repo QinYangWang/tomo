@@ -17,6 +17,8 @@
  *   POST   /api/settings/pair                     one-time code; DM "/pair <code>" to the bot
  *   DELETE /api/settings/owners/:id
  *   PUT    /api/settings/password {current, next}
+ *   PUT    /api/settings/profile {name?, nickname?, birthday?, ...}  owner profile, "" clears a field
+ *   PUT    /api/settings/onboarded {done}         first-run guide finished or skipped
  *
  * REST
  *   GET  /api/conversations              home + bound chats
@@ -39,7 +41,7 @@ import { projects } from "../app/projects.ts";
 import { schedules } from "../app/schedules.ts";
 import { skillIndex } from "../agent/extensions/skills.ts";
 import { cid, ctx } from "../agent/util.ts";
-import { auth, CHANNELS, channelSettings, pairingCodes, runtime, secrets, settings, type ChannelId, type ModelRef } from "../app/settings.ts";
+import { auth, CHANNELS, channelSettings, pairingCodes, profile, runtime, secrets, settings, type ChannelId, type ModelRef } from "../app/settings.ts";
 import { PROVIDERS } from "../agent/providers.ts";
 import { channelStatus, syncChannel } from "../channels/manager.ts";
 import { config } from "../config.ts";
@@ -136,6 +138,8 @@ export function startHttp(gateway: Gateway) {
       })),
       owners: runtime.owners(),
       ownersFromEnv: config.owners,
+      profile: profile.get(),
+      onboarded: settings.get<boolean>("onboarded", false),
     }),
   );
 
@@ -198,6 +202,13 @@ export function startHttp(gateway: Gateway) {
     }
     if (typeof body.enabled === "boolean") settings.set(`channel:${id}:enabled`, body.enabled);
     return c.json({ status: await syncChannel(gateway, id) });
+  });
+
+  app.put("/api/settings/profile", async (c) => c.json({ profile: profile.update(await c.req.json<Record<string, unknown>>()) }));
+  app.put("/api/settings/onboarded", async (c) => {
+    const { done } = await c.req.json<{ done?: boolean }>().catch(() => ({ done: true }));
+    settings.set("onboarded", done !== false);
+    return c.json({ ok: true });
   });
 
   app.post("/api/settings/pair", (c) => c.json(pairingCodes.issue()));

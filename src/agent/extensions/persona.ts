@@ -1,5 +1,13 @@
 import { defineExtension, section } from "@earendil-works/pi-durable";
 import { config } from "../../config.ts";
+import { profile } from "../../app/settings.ts";
+
+const LABELS: Record<string, string> = { name: "Name", nickname: "Call them", birthday: "Birthday", email: "Email", phone: "Phone", home: "Home", work: "Work", household: "Household", interests: "Interests", pets: "Pets" };
+/** The owner's profile from Settings. Edited rarely, so it barely touches the prompt cache. */
+const owner = () => {
+  const lines = Object.entries(profile.get()).map(([k, v]) => `- ${LABELS[k] ?? k}: ${v}`);
+  return lines.length ? `The owner (from their profile in Settings; treat as given by them):\n${lines.join("\n")}` : "";
+};
 
 const today = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: config.timezone, year: "numeric", month: "2-digit", day: "2-digit", weekday: "long" }).format(new Date());
@@ -26,6 +34,7 @@ How you work:
 - Reply in the language the user wrote in.`,
       { tag: false },
     ),
+    section("owner", owner),
     section("clock", () => `Today is ${today()} (${config.timezone}).`),
   ],
 });

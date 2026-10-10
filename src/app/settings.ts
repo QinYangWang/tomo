@@ -119,6 +119,29 @@ export const runtime = {
   },
 };
 
+// ---------- owner profile (who the agent works for) ----------
+
+export const PROFILE_FIELDS = ["name", "nickname", "birthday", "email", "phone", "home", "work", "household", "interests", "pets"] as const;
+export type Profile = Partial<Record<(typeof PROFILE_FIELDS)[number], string>>;
+export const profile = {
+  get(): Profile {
+    return settings.get<Profile>("profile", {});
+  },
+  /** Merges known fields only; an empty string clears a field. */
+  update(patch: Record<string, unknown>): Profile {
+    const cur = profile.get();
+    for (const f of PROFILE_FIELDS) {
+      const v = patch[f];
+      if (typeof v !== "string") continue;
+      const t = v.trim().slice(0, 300);
+      if (t) cur[f] = t;
+      else delete cur[f];
+    }
+    settings.set("profile", cur);
+    return cur;
+  },
+};
+
 // ---------- channels ----------
 
 export const CHANNELS = {
