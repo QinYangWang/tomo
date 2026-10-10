@@ -6,6 +6,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
 import { config } from "../../config.ts";
+import { runtime } from "../../app/settings.ts";
 import { messageText, roleOf, text } from "../util.ts";
 
 export const Delegate: Extension = defineExtension({
@@ -22,7 +23,7 @@ export const Delegate: Extension = defineExtension({
           const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0];
           if (existing !== undefined) return existing.id;
           const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
-          await configure(tx, created.id, { model: config.smallModel, extensions: { remove: [Delegate] } });
+          await configure(tx, created.id, { model: runtime.smallModel(), extensions: { remove: [Delegate] } });
           return created.id;
         }, context);
         await api.details({ conversationId: child }, context);

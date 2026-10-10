@@ -1,13 +1,12 @@
 import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
-import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
-import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
-import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { createRegistry, Harness } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "../config.ts";
+import { credentialStore, runtime } from "../app/settings.ts";
+import { installProviders } from "./providers.ts";
 import { openBunSqliteStorage } from "../storage/bun-sqlite.ts";
 import { loadPlugins, Plugins } from "./evolve/plugins.ts";
 import { Delegate } from "./extensions/delegate.ts";
@@ -19,12 +18,9 @@ import { Skills } from "./extensions/skills.ts";
 import { ctx } from "./util.ts";
 
 export async function openAgent(opts: { models?: MutableModels } = {}) {
-  const models = opts.models ?? createModels();
-  if (!opts.models) {
-    if (process.env.ANTHROPIC_API_KEY) models.setProvider(anthropicProvider());
-    if (process.env.OPENAI_API_KEY) models.setProvider(openaiProvider());
-    if (process.env.GEMINI_API_KEY) models.setProvider(googleProvider());
-  }
+  // Keys come from the settings page (encrypted in app.sqlite), with env vars as fallback.
+  const models = opts.models ?? createModels({ credentials: credentialStore });
+  if (!opts.models) installProviders(models);
 
   const registry = createRegistry();
   // Install order is prompt order: identity first, tools after.
@@ -59,7 +55,7 @@ export async function openAgent(opts: { models?: MutableModels } = {}) {
   });
 
   // The owner's home conversation is the harness root: one continuous thread across every surface.
-  const root = await harness.root(ctx, { agent: { model: config.model } });
+  const root = await harness.root(ctx, { agent: { model: runtime.model() } });
   harness.resume(); // finish whatever the last process left mid-run
 
   return { harness, registry, models, root };

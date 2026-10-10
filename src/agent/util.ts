@@ -57,3 +57,6 @@ export function transcript(entries: readonly EntryRecord[], maxChars = 24_000): 
   if (out.length > maxChars) out = "…" + out.slice(-maxChars);
   return out;
 }
+
+/** Conversation ids travel as strings (db rows, URLs); the harness wants its numeric id. */
+export const cid = (id: string | number): any => Number(id);

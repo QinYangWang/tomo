@@ -6,7 +6,7 @@ After=network-online.target
 [Service]
 User=tomo
 WorkingDirectory=/opt/tomo
-EnvironmentFile=/opt/tomo/.env
+EnvironmentFile=-/opt/tomo/.env
 ExecStart=/home/tomo/.bun/bin/bun run src/main.ts
 Restart=always
 RestartSec=3

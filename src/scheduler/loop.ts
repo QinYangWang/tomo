@@ -5,7 +5,7 @@
  */
 import { AssistantEntry } from "@earendil-works/pi-durable";
 import { schedules } from "../app/schedules.ts";
-import { ctx, messageText } from "../agent/util.ts";
+import { cid, ctx, messageText } from "../agent/util.ts";
 import type { Gateway } from "../gateway/gateway.ts";
 
 export function startScheduler(gateway: Gateway, everyMs = 20_000) {
@@ -14,7 +14,7 @@ export function startScheduler(gateway: Gateway, everyMs = 20_000) {
       const firedAt = s.next_run!;
       schedules.advance(s, firedAt);
       void (async () => {
-        const conv = await gateway.harness.conversation(s.conversation_id as any, ctx);
+        const conv = await gateway.harness.conversation(cid(s.conversation_id), ctx);
         if (!conv) return;
         const content = `[Scheduled task "${s.title}" fired at ${new Date(firedAt).toISOString()}]\n${s.prompt}\n\nYour answer will be sent to the user as a message. If there is nothing worth telling them, reply exactly: SKIP`;
         const sub = await conv.submit({ type: "input", content, requestId: `sched:${s.id}:${firedAt}`, whenBusy: "followUp" }, ctx);

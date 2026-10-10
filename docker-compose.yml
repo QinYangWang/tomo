@@ -2,7 +2,9 @@ services:
   tomo:
     build: .
     restart: unless-stopped      # a crash restarts the process; Pi Durable resumes unfinished work
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false   # optional: configure in the web UI instead
     volumes:
       - ./data:/data             # harness.sqlite, app.sqlite, skills, plugins, project workspaces
     ports:

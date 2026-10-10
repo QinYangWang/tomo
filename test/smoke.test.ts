@@ -22,6 +22,11 @@ test("turn, memory, delivery, restart", async () => {
   const { Gateway } = await import("../src/gateway/gateway.ts");
   const { memory } = await import("../src/app/memory.ts");
   const { ctx } = await import("../src/agent/util.ts");
+  // Test files share one process (and the first one's config), so pin what this test needs.
+  const { settings, runtime } = await import("../src/app/settings.ts");
+  settings.set("model", { provider: "faux", modelId: "faux-1" });
+  settings.set("smallModel", { provider: "faux", modelId: "faux-1" });
+  runtime.addOwner("test:owner");
 
   const faux = fauxProvider({ provider: "faux", models: [{ id: "faux-1", contextWindow: 200_000 }] });
   faux.setResponses([

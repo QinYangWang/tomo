@@ -11,10 +11,12 @@ export class SlackAdapter implements ChannelAdapter {
   private botUserId = "";
 
   constructor(botToken: string, appToken: string) {
-    this.app = new App({ token: botToken, appToken, socketMode: true });
+    // Deferred so a bad token surfaces as an error from start(), not an unhandled rejection.
+    this.app = new App({ token: botToken, appToken, socketMode: true, deferInitialization: true });
   }
 
   async start(handle: (m: Inbound) => Promise<void>) {
+    await this.app.init();
     const auth = await this.app.client.auth.test();
     this.botUserId = auth.user_id as string;
 

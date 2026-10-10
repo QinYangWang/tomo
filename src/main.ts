@@ -1,25 +1,25 @@
 import { openAgent } from "./agent/harness.ts";
 import { ctx } from "./agent/util.ts";
-import { DiscordAdapter } from "./channels/discord.ts";
-import { SlackAdapter } from "./channels/slack.ts";
-import { TelegramAdapter } from "./channels/telegram.ts";
+import { syncAllChannels } from "./channels/manager.ts";
+import { runtime } from "./app/settings.ts";
 import { config } from "./config.ts";
 import { Gateway } from "./gateway/gateway.ts";
 import { startScheduler } from "./scheduler/loop.ts";
 import { startHttp } from "./server/http.ts";
 
+// A misbehaving channel SDK must never take the whole agent down.
+process.on("unhandledRejection", (e) => console.error("[unhandled]", e));
+
 const agent = await openAgent();
 const gateway = new Gateway(agent);
 
-if (config.telegram.token) gateway.register(new TelegramAdapter(config.telegram.token));
-if (config.discord.token) gateway.register(new DiscordAdapter(config.discord.token));
-if (config.slack.botToken && config.slack.appToken) gateway.register(new SlackAdapter(config.slack.botToken, config.slack.appToken));
-
-await gateway.start();
-const stopScheduler = startScheduler(gateway);
+// Web first, so the settings page is up even while channels connect.
 startHttp(gateway);
+// Channels and model come from the settings page (env vars still work as a fallback).
+await syncAllChannels(gateway);
+const stopScheduler = startScheduler(gateway);
 
-console.log(`[${config.name}] up · model ${config.model.provider}/${config.model.modelId} · surfaces: ${[...gateway.adapters.keys(), "web"].join(", ")}`);
+console.log(`[${config.name}] up · model ${runtime.model().provider}/${runtime.model().modelId} · surfaces: ${[...gateway.adapters.keys(), "web"].join(", ")} · web on :${config.http.port}`);
 
 let stopping = false;
 for (const sig of ["SIGINT", "SIGTERM"] as const) {

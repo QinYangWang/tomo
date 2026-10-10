@@ -7,50 +7,184 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <title>Tomo</title>
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --line:#262a33; --text:#e7e9ee; --dim:#8a90a0; --me:#2f6fed; --tool:#1d2a1f; }
+  :root { --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --line:#262a33; --text:#e7e9ee; --dim:#8a90a0; --me:#2f6fed; --tool:#1d2a1f; --ok:#3fb950; --err:#f85149; --warn:#d29922; }
   * { box-sizing: border-box; }
   body { margin:0; height:100dvh; display:flex; background:var(--bg); color:var(--text); font:15px/1.5 -apple-system, "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif; }
+  button, input, select, textarea { font:inherit; color:inherit; }
   aside { width:260px; border-right:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; }
   aside h1 { font-size:16px; margin:16px; }
   aside nav { overflow:auto; flex:1; }
-  aside button { display:block; width:100%; text-align:left; padding:10px 16px; background:none; border:0; color:var(--dim); cursor:pointer; font:inherit; }
-  aside button.on, aside button:hover { color:var(--text); background:#1f232c; }
-  aside .sec { padding:12px 16px 4px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  aside button { display:block; width:100%; text-align:left; padding:10px 16px; background:none; border:0; color:var(--dim); cursor:pointer; }
+  aside button.on, aside button:hover { color:var(--text); background:var(--panel2); }
+  aside .sec { padding:12px 16px 4px; font-size:12px; color:var(--dim); letter-spacing:.06em; }
+  aside .foot { border-top:1px solid var(--line); }
   main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .view { flex:1; display:none; flex-direction:column; min-height:0; }
+  .view.on { display:flex; }
   #log { flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:10px; }
   .msg { max-width:min(720px, 85%); padding:10px 14px; border-radius:16px; white-space:pre-wrap; word-wrap:break-word; }
   .user { align-self:flex-end; background:var(--me); border-bottom-right-radius:4px; }
   .assistant { align-self:flex-start; background:var(--panel); border-bottom-left-radius:4px; }
   .tool { align-self:flex-start; background:var(--tool); color:#9fd3a8; font:12px/1.4 ui-monospace, monospace; border-radius:8px; }
   .live { opacity:.85; }
-  form { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); padding-bottom:max(12px, env(safe-area-inset-bottom)); }
-  textarea { flex:1; resize:none; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:10px 12px; font:inherit; height:44px; max-height:200px; }
-  form button { background:var(--me); color:white; border:0; border-radius:12px; padding:0 18px; font:inherit; cursor:pointer; }
+  #f { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+  #t { flex:1; resize:none; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 12px; height:44px; max-height:200px; }
+  .btn { background:var(--me); color:white; border:0; border-radius:10px; padding:8px 16px; cursor:pointer; white-space:nowrap; }
+  .btn.ghost { background:var(--panel2); color:var(--text); }
+  .btn.danger { background:none; color:var(--err); border:1px solid var(--line); }
+  .btn:disabled { opacity:.5; cursor:default; }
   #status { font-size:12px; color:var(--dim); padding:0 20px 6px; min-height:18px; }
-  @media (max-width: 720px) { aside { display:none; } }
+  #banner { display:none; margin:12px 20px 0; padding:10px 14px; border-radius:10px; background:#2a2414; color:var(--warn); cursor:pointer; }
+
+  #settings { overflow:auto; padding:24px; }
+  .wrap { max-width:760px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+  h2 { font-size:18px; margin:0 0 4px; }
+  .sub { color:var(--dim); font-size:13px; margin:0 0 12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row > .grow { flex:1; min-width:180px; }
+  .title { font-weight:600; }
+  .hint { color:var(--dim); font-size:12px; }
+  input[type=password], input[type=text], select { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; width:100%; }
+  label.k { font-size:12px; color:var(--dim); display:block; margin-bottom:4px; }
+  .pill { font-size:12px; padding:2px 8px; border-radius:99px; background:var(--panel2); color:var(--dim); }
+  .pill.ok { color:var(--ok); } .pill.err { color:var(--err); } .pill.warn { color:var(--warn); }
+  .msgline { font-size:13px; min-height:18px; }
+  .msgline.ok { color:var(--ok); } .msgline.err { color:var(--err); }
+  .card > .msgline:empty, .card .row > .msgline:empty { display:none; }
+  .switch { display:flex; gap:6px; align-items:center; color:var(--dim); font-size:13px; cursor:pointer; }
+  code { background:var(--panel2); padding:1px 6px; border-radius:6px; font-size:13px; }
+  .code { font:600 28px/1 ui-monospace, monospace; letter-spacing:.2em; }
+  details summary { cursor:pointer; color:var(--dim); font-size:13px; }
+  details ol { margin:6px 0 0; padding-left:20px; color:var(--dim); font-size:13px; }
+
+  #gate { position:fixed; inset:0; background:var(--bg); display:none; align-items:center; justify-content:center; z-index:10; }
+  #gate form { width:min(360px, 90vw); display:flex; flex-direction:column; gap:12px; }
+  #gate h2 { font-size:22px; }
+  #mobileNav { display:none; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); }
+  @media (max-width: 720px) { aside { display:none; } #mobileNav { display:flex; } #settings { padding:16px; } }
 </style>
 </head>
 <body>
+<div id="gate"><form id="gateForm">
+  <h2 id="gateTitle">Tomo</h2>
+  <p class="sub" id="gateSub"></p>
+  <input type="password" id="pw" autocomplete="current-password" placeholder="密码" />
+  <input type="password" id="pw2" autocomplete="new-password" placeholder="再输一次" style="display:none" />
+  <div class="msgline err" id="gateErr"></div>
+  <button class="btn" id="gateBtn">登录</button>
+</form></div>
+
 <aside>
   <h1>Tomo</h1>
   <nav>
-    <div class="sec">Conversations</div><div id="convs"></div>
-    <div class="sec">Projects</div><div id="projects"></div>
+    <div class="sec">对话</div><div id="convs"></div>
+    <div class="sec">项目</div><div id="projects"></div>
   </nav>
+  <div class="foot"><button id="navSettings">⚙︎ 设置</button></div>
 </aside>
 <main>
-  <div id="log"></div>
-  <div id="status"></div>
-  <form id="f"><textarea id="t" placeholder="Message Tomo…  (/help for commands)"></textarea><button>Send</button></form>
+  <div id="mobileNav"><button class="btn ghost" id="mChat">💬 对话</button><button class="btn ghost" id="mSettings">⚙︎ 设置</button></div>
+
+  <section class="view on" id="chat">
+    <div id="banner">还没配置 AI 模型，点这里去设置 →</div>
+    <div id="log"></div>
+    <div id="status"></div>
+    <form id="f"><textarea id="t" placeholder="和 Tomo 说点什么…（/help 查看命令）"></textarea><button class="btn">发送</button></form>
+  </section>
+
+  <section class="view" id="settings"><div class="wrap">
+    <div>
+      <h2>AI 模型</h2>
+      <p class="sub">填上任意一家的 API key，再选默认模型。key 加密保存在你的服务器上，页面只显示末四位。</p>
+      <div class="card">
+        <div class="row">
+          <div class="grow"><label class="k">主模型（对话）</label><div class="row"><select id="mProv" style="width:40%"></select><select id="mId" class="grow" style="width:auto"></select></div></div>
+        </div>
+        <div class="row">
+          <div class="grow"><label class="k">小模型（后台反思、子任务）</label><div class="row"><select id="sProv" style="width:40%"></select><select id="sId" class="grow" style="width:auto"></select></div></div>
+        </div>
+        <div class="row"><button class="btn" id="saveModel">保存模型</button><span class="msgline" id="modelMsg"></span></div>
+      </div>
+      <div id="providers" style="display:flex;flex-direction:column;gap:10px;margin-top:10px"></div>
+    </div>
+
+    <div>
+      <h2>消息平台</h2>
+      <p class="sub">保存后立刻连接，不用重启。连上之后去「主人账号」配对你自己的账号。</p>
+      <div id="channels" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <div>
+      <h2>主人账号</h2>
+      <p class="sub">配对过的账号私聊 Tomo 时，都会进入同一个 Home 对话。别人发来的私聊会被忽略。</p>
+      <div class="card">
+        <div id="owners"></div>
+        <div class="row"><button class="btn ghost" id="pairBtn">生成配对码</button><span class="hint" id="pairHint"></span></div>
+        <div id="pairBox" style="display:none"><div class="code" id="pairCode"></div><div class="hint">10 分钟内，用你的账号私聊机器人发送 <code id="pairCmd"></code></div></div>
+      </div>
+    </div>
+
+    <div>
+      <h2>安全</h2>
+      <div class="card">
+        <div class="row"><div class="grow"><input type="password" id="curPw" placeholder="当前密码" autocomplete="current-password" /></div><div class="grow"><input type="password" id="newPw" placeholder="新密码（至少 8 位）" autocomplete="new-password" /></div><button class="btn ghost" id="pwBtn">修改密码</button></div>
+        <div class="row"><span class="msgline" id="pwMsg"></span></div>
+        <div class="row"><button class="btn danger" id="logout">退出登录</button></div>
+      </div>
+    </div>
+  </div></section>
 </main>
+
 <script>
-const token = localStorage.token ?? (localStorage.token = prompt("API token (TOMO_API_TOKEN)") ?? "");
-const H = { authorization: `Bearer ${token}`, "content-type": "application/json" };
 const $ = (id) => document.getElementById(id);
+let token = localStorage.token || "";
+const H = () => ({ authorization: `Bearer ${token}`, "content-type": "application/json" });
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { ...H(), ...(opts.headers || {}) }, body: opts.body && typeof opts.body !== "string" ? JSON.stringify(opts.body) : opts.body });
+  if (r.status === 401 && !path.startsWith("/api/auth/")) { showGate(); throw new Error("unauthorized"); }
+  return r.json();
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+function flash(el, text, ok) { el.textContent = text; el.className = `msgline ${ok ? "ok" : "err"}`; }
+
+// ---------- gate: first-run setup / login ----------
+let setupMode = false;
+async function showGate() {
+  const s = await (await fetch("/api/auth/status", { headers: H() })).json();
+  if (s.authed) return boot();
+  setupMode = s.setup;
+  $("gate").style.display = "flex";
+  $("gateTitle").textContent = setupMode ? "欢迎使用 Tomo" : "Tomo";
+  $("gateSub").textContent = setupMode ? "先设一个管理员密码，之后的配置都在网页里完成。" : "输入管理员密码";
+  $("pw2").style.display = setupMode ? "" : "none";
+  $("pw").autocomplete = setupMode ? "new-password" : "current-password";
+  $("gateBtn").textContent = setupMode ? "开始" : "登录";
+  $("pw").focus();
+}
+$("gateForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const password = $("pw").value;
+  if (setupMode && password !== $("pw2").value) return flash($("gateErr"), "两次输入不一致");
+  const r = await (await fetch(setupMode ? "/api/auth/setup" : "/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password }) })).json();
+  if (!r.token) return flash($("gateErr"), r.error === "wrong password" ? "密码不对" : r.error);
+  token = localStorage.token = r.token;
+  $("gate").style.display = "none"; $("pw").value = $("pw2").value = "";
+  boot(setupMode);
+};
+
+// ---------- views ----------
+function show(view) {
+  for (const v of ["chat", "settings"]) $(v).classList.toggle("on", v === view);
+  $("navSettings").classList.toggle("on", view === "settings");
+  if (view === "settings") loadSettings();
+}
+$("navSettings").onclick = $("mSettings").onclick = $("banner").onclick = () => show("settings");
+$("mChat").onclick = () => show("chat");
+
+// ---------- chat ----------
 let current = "home", ws, live = null;
-
 const textOf = (msgs) => (msgs ?? []).flatMap((m) => typeof m.content === "string" ? [m.content] : (m.content ?? []).filter((c) => c.type === "text").map((c) => c.text)).join("");
-
 function bubble(cls, text) {
   const d = document.createElement("div");
   d.className = `msg ${cls}`; d.textContent = text;
@@ -63,46 +197,169 @@ function renderEntry(e) {
     for (const m of e.model ?? []) for (const c of m.content ?? []) if (c.type === "toolCall") bubble("tool", `→ ${c.name} ${JSON.stringify(c.arguments).slice(0, 160)}`);
   }
 }
-
 function connect(id) {
   ws?.close(); $("log").innerHTML = ""; live = null; current = id;
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${proto}://${location.host}/ws?conversation=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`);
-  ws.onmessage = (ev) => {
+  const sock = ws = new WebSocket(`${proto}://${location.host}/ws?conversation=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`);
+  sock.onmessage = (ev) => {
     for (const e of JSON.parse(ev.data)) {
       if (e.type === "snapshot") { $("log").innerHTML = ""; e.entries.forEach(renderEntry); }
       else if (e.type === "message_start" && e.message.role === "assistant") live = bubble("assistant live", "");
-      else if (e.type === "message_update" && live) for (const c of e.changes) if (c.type === "text_delta") { live.textContent += c.delta; $("log").scrollTop = 1e9; }
+      else if (e.type === "message_update" && live) { for (const c of e.changes) if (c.type === "text_delta") { live.textContent += c.delta; $("log").scrollTop = 1e9; } }
       else if (e.type === "message_end") { live?.remove(); live = null; renderEntry(e.entry); }
-      else if (e.type === "tool_execution_start") $("status").textContent = `running ${e.toolName}…`;
-      else if (e.type === "run_start") $("status").textContent = "thinking…";
+      else if (e.type === "tool_execution_start") $("status").textContent = `正在运行 ${e.toolName}…`;
+      else if (e.type === "run_start") $("status").textContent = "思考中…";
       else if (e.type === "run_end") $("status").textContent = "";
     }
   };
-  ws.onclose = () => setTimeout(() => current === id && connect(id), 2000);
+  sock.onclose = (ev) => { if (ev.code === 4401) return showGate(); setTimeout(() => ws === sock && connect(id), 2000); };
   document.querySelectorAll("#convs button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
 }
-
 async function sidebar() {
-  const convs = await (await fetch("/api/conversations", { headers: H })).json();
+  const convs = await api("/api/conversations");
   $("convs").innerHTML = "";
   for (const c of convs) {
     const b = document.createElement("button");
-    b.dataset.id = c.key === "home" ? "home" : c.id; b.textContent = c.key === "home" ? "🏠 Home (all apps)" : c.key;
-    b.onclick = () => connect(b.dataset.id); $("convs").append(b);
+    b.dataset.id = c.key === "home" ? "home" : c.id; b.textContent = c.key === "home" ? "🏠 Home（所有平台）" : c.key;
+    b.onclick = () => { show("chat"); connect(b.dataset.id); }; $("convs").append(b);
   }
-  const ps = await (await fetch("/api/projects", { headers: H })).json();
-  $("projects").innerHTML = ps.map((p) => `<button disabled>${p.status === "active" ? "📁" : "🗄"} ${p.name}</button>`).join("");
+  const ps = await api("/api/projects");
+  $("projects").innerHTML = ps.map((p) => `<button disabled>${p.status === "active" ? "📁" : "🗄"} ${esc(p.name)}</button>`).join("");
 }
-
 $("f").onsubmit = (ev) => {
   ev.preventDefault();
-  const text = $("t").value.trim(); if (!text) return;
+  const text = $("t").value.trim(); if (!text || ws?.readyState !== 1) return;
   ws.send(JSON.stringify({ type: "input", text })); $("t").value = "";
 };
 $("t").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("f").requestSubmit(); } };
 
-sidebar().then(() => connect("home"));
+// ---------- settings ----------
+let S;
+const CH = {
+  telegram: { label: "Telegram", fields: { token: "Bot Token" }, steps: ["Telegram 里找 @BotFather，发 /newbot", "按提示起名，复制它给的 token 填到这里"] },
+  discord: { label: "Discord", fields: { token: "Bot Token" }, steps: ["Discord Developer Portal → New Application → Bot → Reset Token", "同一页打开 Message Content Intent", "OAuth2 → URL Generator 勾 bot，用生成的链接把机器人拉进服务器"] },
+  slack: { label: "Slack", fields: { botToken: "Bot Token (xoxb-)", appToken: "App Token (xapp-)" }, steps: ["api.slack.com/apps → Create New App", "Socket Mode 打开，生成 App Token，scope 选 connections:write", "OAuth & Permissions 加 Bot scopes：app_mentions:read chat:write im:history im:read im:write", "Event Subscriptions 订阅 app_mention、message.im；App Home 勾选允许发消息", "Install to Workspace，复制 Bot Token"] },
+};
+const STATE = { connected: ["已连接", "ok"], connecting: ["连接中", "warn"], error: ["连接失败", "err"], off: ["未连接", ""] };
+
+async function loadSettings() {
+  S = await api("/api/settings");
+  renderProviders(); renderChannels(); renderOwners(); await renderModelPickers();
+}
+
+function renderProviders() {
+  $("providers").innerHTML = "";
+  for (const p of S.providers) {
+    const el = document.createElement("div"); el.className = "card";
+    const state = p.key.set ? `<span class="pill ok">已保存 ····${esc(p.key.last4)}</span>` : p.fromEnv ? `<span class="pill">来自环境变量</span>` : `<span class="pill">未设置</span>`;
+    el.innerHTML = `
+      <div class="row"><span class="title">${esc(p.label)}</span>${state}</div>
+      <div class="row"><input class="grow" type="password" placeholder="${p.key.set ? "输入新 key 替换" : "API key"}" autocomplete="off" />
+        <button class="btn" data-a="save">保存</button><button class="btn ghost" data-a="test" ${p.key.set || p.fromEnv ? "" : "disabled"}>测试</button>
+        ${p.key.set ? `<button class="btn danger" data-a="del">删除</button>` : ""}</div>
+      <div class="row"><span class="hint">${esc(p.hint)}</span></div>
+      <div class="msgline"></div>`;
+    const input = el.querySelector("input"), msg = el.querySelector(".msgline");
+    el.querySelector('[data-a="save"]').onclick = async () => {
+      if (!input.value.trim()) return flash(msg, "先填 key");
+      const r = await api(`/api/settings/providers/${p.id}`, { method: "PUT", body: { key: input.value } });
+      if (r.error) return flash(msg, r.error);
+      input.value = ""; await loadSettings();
+      const m = [...$("providers").children][S.providers.findIndex((x) => x.id === p.id)];
+      m?.querySelector('[data-a="test"]')?.click();
+    };
+    el.querySelector('[data-a="test"]').onclick = async (ev) => {
+      ev.target.disabled = true; flash(msg, "测试中…", true);
+      const r = await api(`/api/settings/providers/${p.id}/test`, { method: "POST", body: {} });
+      ev.target.disabled = false;
+      r.ok ? flash(msg, `可以用 ✓（${r.model}）`, true) : flash(msg, `失败：${r.error}`);
+    };
+    el.querySelector('[data-a="del"]')?.addEventListener("click", async () => { if (confirm(`删除 ${p.label} 的 key？`)) { await api(`/api/settings/providers/${p.id}`, { method: "DELETE" }); loadSettings(); } });
+    $("providers").append(el);
+  }
+  const anyKey = S.providers.some((p) => p.key.set || p.fromEnv);
+  $("banner").style.display = anyKey ? "none" : "block";
+}
+
+async function fillModels(provSel, idSel, want) {
+  const list = await api(`/api/settings/models?provider=${encodeURIComponent(provSel.value)}`);
+  idSel.innerHTML = list.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
+  if (want && list.some((m) => m.id === want)) idSel.value = want;
+}
+async function renderModelPickers() {
+  const opts = S.providers.map((p) => `<option value="${p.id}">${esc(p.label)}${p.key.set || p.fromEnv ? "" : "（未设置 key）"}</option>`).join("");
+  for (const [ps, is, cur] of [[$("mProv"), $("mId"), S.model], [$("sProv"), $("sId"), S.smallModel]]) {
+    ps.innerHTML = opts;
+    ps.value = S.providers.some((p) => p.id === cur.provider) ? cur.provider : S.providers[0].id;
+    await fillModels(ps, is, cur.modelId);
+    ps.onchange = () => fillModels(ps, is);
+  }
+}
+$("saveModel").onclick = async () => {
+  const r = await api("/api/settings/model", { method: "PUT", body: { model: { provider: $("mProv").value, modelId: $("mId").value }, smallModel: { provider: $("sProv").value, modelId: $("sId").value } } });
+  r.error ? flash($("modelMsg"), r.error) : flash($("modelMsg"), `已保存：${r.model.provider}/${r.model.modelId}`, true);
+};
+
+function renderChannels() {
+  $("channels").innerHTML = "";
+  for (const c of S.channels) {
+    const meta = CH[c.id]; const [stText, stCls] = STATE[c.status.state] ?? ["", ""];
+    const el = document.createElement("div"); el.className = "card";
+    el.innerHTML = `
+      <div class="row"><span class="title">${meta.label}</span><span class="pill ${stCls}">${stText}</span><span class="grow"></span>
+        <label class="switch"><input type="checkbox" ${c.enabled ? "checked" : ""} /> 启用</label></div>
+      ${Object.entries(meta.fields).map(([f, label]) => {
+        const v = c.fields[f] ?? {}; const now = v.last4 ? `已保存 ····${esc(v.last4)}` : v.fromEnv ? "来自环境变量" : "";
+        return `<div><label class="k">${label} ${now ? `<span class="pill">${now}</span>` : ""}</label><input type="password" data-f="${f}" autocomplete="off" placeholder="${now ? "留空则不修改" : ""}" /></div>`;
+      }).join("")}
+      <div class="row"><button class="btn">保存并连接</button><span class="msgline ${c.status.state === "error" ? "err" : ""}">${c.status.state === "error" ? esc(c.status.error) : ""}</span></div>
+      <details><summary>怎么拿 token</summary><ol>${meta.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></details>`;
+    const msg = el.querySelector(".msgline"), btn = el.querySelector(".btn"), toggle = el.querySelector("input[type=checkbox]");
+    const save = async () => {
+      const body = { enabled: toggle.checked };
+      el.querySelectorAll("[data-f]").forEach((i) => { if (i.value.trim()) body[i.dataset.f] = i.value.trim(); });
+      btn.disabled = true; flash(msg, "连接中…", true);
+      const r = await api(`/api/settings/channels/${c.id}`, { method: "PUT", body });
+      btn.disabled = false;
+      if (r.error) return flash(msg, r.error);
+      await loadSettings();
+    };
+    btn.onclick = save; toggle.onchange = save;
+    $("channels").append(el);
+  }
+}
+
+function renderOwners() {
+  const env = new Set(S.ownersFromEnv);
+  $("owners").innerHTML = S.owners.length
+    ? S.owners.map((o) => `<div class="row"><code>${esc(o)}</code>${env.has(o) ? `<span class="pill">环境变量</span>` : `<button class="btn danger" data-o="${esc(o)}">移除</button>`}</div>`).join("")
+    : `<div class="hint">还没有配对的账号。</div>`;
+  $("owners").querySelectorAll("[data-o]").forEach((b) => b.onclick = async () => { await api(`/api/settings/owners/${encodeURIComponent(b.dataset.o)}`, { method: "DELETE" }); loadSettings(); });
+}
+$("pairBtn").onclick = async () => {
+  const r = await api("/api/settings/pair", { method: "POST" });
+  $("pairBox").style.display = ""; $("pairCode").textContent = r.code; $("pairCmd").textContent = `/pair ${r.code}`;
+  const t = setInterval(async () => { const s = await api("/api/settings"); if (s.owners.length !== S.owners.length) { clearInterval(t); $("pairBox").style.display = "none"; S = s; renderOwners(); } }, 3000);
+  setTimeout(() => clearInterval(t), 10 * 60_000);
+};
+
+$("pwBtn").onclick = async () => {
+  const r = await api("/api/settings/password", { method: "PUT", body: { current: $("curPw").value, next: $("newPw").value } });
+  if (r.token) { token = localStorage.token = r.token; $("curPw").value = $("newPw").value = ""; flash($("pwMsg"), "已修改，其他设备需要重新登录", true); }
+  else flash($("pwMsg"), r.error === "wrong password" ? "当前密码不对" : r.error);
+};
+$("logout").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); token = localStorage.token = ""; ws?.close(); location.reload(); };
+
+// ---------- boot ----------
+async function boot(firstRun) {
+  $("gate").style.display = "none";
+  await sidebar(); connect("home");
+  S = await api("/api/settings");
+  const anyKey = S.providers.some((p) => p.key.set || p.fromEnv);
+  $("banner").style.display = anyKey ? "none" : "block";
+  if (firstRun || !anyKey) show("settings");
+}
+showGate();
 </script>
 </body>
 </html>

@@ -11,7 +11,8 @@ import { db } from "../../app/db.ts";
 import { formatMemories, memory } from "../../app/memory.ts";
 import { projects } from "../../app/projects.ts";
 import { config } from "../../config.ts";
-import { ctx, MetaDoc, transcript } from "../util.ts";
+import { runtime } from "../../app/settings.ts";
+import { cid, ctx, MetaDoc, transcript } from "../util.ts";
 import { Memory } from "../extensions/memory.ts";
 import { Persona } from "../extensions/persona.ts";
 import { Skills } from "../extensions/skills.ts";
@@ -28,16 +29,16 @@ Finish with a one-line summary of what you changed.`;
 let reflectorId: string | undefined;
 
 async function reflector(harness: Harness) {
-  if (reflectorId) return (await harness.conversation(reflectorId as any, ctx))!;
+  if (reflectorId) return (await harness.conversation(cid(reflectorId), ctx))!;
   const existing = bindings.get("system:reflector");
   if (existing) {
     reflectorId = existing;
-    return (await harness.conversation(existing as any, ctx))!;
+    return (await harness.conversation(cid(existing), ctx))!;
   }
   const conv = await harness.createConversation(
     {
       ownership: { kind: "ownerless" },
-      agent: { model: config.smallModel, extensions: [Persona, Memory, Skills], instructions: INSTRUCTIONS },
+      agent: { model: runtime.smallModel(), extensions: [Persona, Memory, Skills], instructions: INSTRUCTIONS },
     },
     ctx,
   );
@@ -62,19 +63,20 @@ export function noteTurn(harness: Harness, conversationId: string) {
 }
 
 export async function reflect(harness: Harness, conversationId: string, turn: number) {
-  const conv = await harness.conversation(conversationId as any, ctx);
+  const conv = await harness.conversation(cid(conversationId), ctx);
   if (!conv) return;
   const view = await conv.viewState(ctx);
   const slice = transcript(view.value.entries, 16_000);
   view.dispose();
   if (!slice) return;
 
-  const meta = await harness.snapshot(MetaDoc, conversationId as any, ctx);
+  const meta = await harness.snapshot(MetaDoc, cid(conversationId), ctx);
   const project = meta?.projectId ? projects.get(meta.projectId) : undefined;
   const known = formatMemories(memory.recent({ scope: meta?.projectId, limit: 60 }));
 
   const r = await reflector(harness);
   await r.reset(undefined, ctx); // each reflection starts clean; old ones stay in storage
+  await r.configure({ model: runtime.smallModel() }, ctx); // follow the model chosen in settings
   const input = [
     project ? `Active project: ${project.name} (${project.id}). Current brief:\n${project.brief}` : "No active project.",
     `Existing memories:\n${known || "(none)"}`,

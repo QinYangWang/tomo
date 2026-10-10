@@ -12,8 +12,8 @@ import type { Agent } from "../agent/harness.ts";
 import { noteTurn } from "../agent/evolve/reflection.ts";
 import { pluginAdmin } from "../agent/evolve/plugins.ts";
 import { projects } from "../app/projects.ts";
-import { config } from "../config.ts";
-import { ctx, messageText, MetaDoc } from "../agent/util.ts";
+import { pairingCodes, runtime } from "../app/settings.ts";
+import { cid, ctx, messageText, MetaDoc } from "../agent/util.ts";
 import { bindings, routes } from "./bindings.ts";
 import { chunk, type ChannelAdapter, type Inbound } from "./types.ts";
 
@@ -32,6 +32,32 @@ export class Gateway {
     this.adapters.set(adapter.platform, adapter);
   }
 
+  /** Start one adapter (used when a channel is connected from the settings page). */
+  async attach(adapter: ChannelAdapter) {
+    await this.detach(adapter.platform);
+    await adapter.start((m) => this.handle(m).catch((e) => console.error(`[${adapter.platform}]`, e)));
+    this.adapters.set(adapter.platform, adapter);
+    console.log(`[gateway] ${adapter.platform} connected`);
+  }
+
+  async detach(platform: string) {
+    const a = this.adapters.get(platform);
+    if (!a) return;
+    this.adapters.delete(platform);
+    await a.stop().catch((e) => console.error(`[${platform}] stop`, e));
+    console.log(`[gateway] ${platform} disconnected`);
+  }
+
+  /** Point every user-facing conversation at the default model chosen in settings. */
+  async applyDefaultModel() {
+    const model = runtime.model();
+    const ids = [String(this.agent.root.id), ...bindings.list().map((b) => b.conversation_id)];
+    for (const id of new Set(ids)) {
+      const conv = await this.harness.conversation(cid(id), ctx);
+      await conv?.configure({ model }, ctx).catch((e: unknown) => console.error("[model]", id, e));
+    }
+  }
+
   async start() {
     for (const a of this.adapters.values()) {
       await a.start((m) => this.handle(m).catch((e) => console.error(`[${a.platform}]`, e)));
@@ -41,8 +67,8 @@ export class Gateway {
 
   role(platform: string, userId: string): "owner" | "allowed" | "stranger" {
     const id = `${platform}:${userId}`;
-    if (platform === "web" || config.owners.includes(id)) return "owner";
-    if (config.allowed.includes(id)) return "allowed";
+    if (platform === "web" || runtime.owners().includes(id)) return "owner";
+    if (runtime.allowed().includes(id)) return "allowed";
     return "stranger";
   }
 
@@ -55,7 +81,7 @@ export class Gateway {
     let chatConv: string | undefined = bindings.get(chatKey);
     if (!chatConv) {
       const c = await this.harness.createConversation(
-        { ownership: { kind: "ownerless" }, agent: { model: config.model }, init: undefined },
+        { ownership: { kind: "ownerless" }, agent: { model: runtime.model() }, init: undefined },
         ctx,
       );
       await c.commit(async (tx) => {
@@ -69,13 +95,13 @@ export class Gateway {
     const threadKey = `${chatKey}:thread:${m.threadId}`;
     const existing = bindings.get(threadKey);
     if (existing) return existing;
-    const parent = (await this.harness.conversation(chatConv as any, ctx))!;
+    const parent = (await this.harness.conversation(cid(chatConv), ctx))!;
     const view = await parent.viewState(ctx);
     const last = view.value.entries.at(-1);
     view.dispose();
     const thread = last
       ? await parent.fork(last.id, { ownership: { kind: "ownerless" } }, ctx)
-      : await this.harness.createConversation({ ownership: { kind: "ownerless" }, agent: { model: config.model } }, ctx);
+      : await this.harness.createConversation({ ownership: { kind: "ownerless" }, agent: { model: runtime.model() } }, ctx);
     bindings.set(threadKey, String(thread.id), m.platform);
     return String(thread.id);
   }
@@ -84,8 +110,14 @@ export class Gateway {
     const adapter = this.adapters.get(m.platform);
     const role = this.role(m.platform, m.userId);
     if (role === "stranger") {
-      if (m.isDirect && config.owners.length === 0) {
-        await adapter?.send(m.address, `No owner configured yet. Your id is ${m.platform}:${m.userId}. Add it to TOMO_OWNERS and restart.`);
+      if (!m.isDirect) return;
+      // Pairing: the owner gets a one-time code on the web settings page and sends "/pair <code>" here.
+      const pair = m.text.trim().match(/^\/pair\s+(\d{6})$/);
+      if (pair && pairingCodes.redeem(pair[1]!)) {
+        runtime.addOwner(`${m.platform}:${m.userId}`);
+        await adapter?.send(m.address, "Paired. This account is now yours: DMs here join your Home conversation.");
+      } else if (runtime.owners().length === 0 || pair) {
+        await adapter?.send(m.address, pair ? "That code is wrong or expired. Get a new one in Settings → Owner." : "Not paired yet. Open Settings → Owner on the web, get a code, and send /pair <code> here.");
       }
       return;
     }
@@ -103,7 +135,7 @@ export class Gateway {
     }
 
     const content = m.isDirect && role === "owner" ? m.text : `[${m.userName} on ${m.platform}] ${m.text}`;
-    const conv = (await this.harness.conversation(convId as any, ctx))!;
+    const conv = (await this.harness.conversation(cid(convId), ctx))!;
     const requestId = `${m.platform}:${m.chatId}:${m.messageId}`;
 
     // Already delivering a run here: this message joins it (steer) and that run's answer covers it.
@@ -156,7 +188,7 @@ export class Gateway {
   async command(convId: string, raw: string): Promise<string | undefined> {
     const [cmd, ...rest] = raw.trim().split(/\s+/);
     const arg = rest.join(" ");
-    const conv = (await this.harness.conversation(convId as any, ctx))!;
+    const conv = (await this.harness.conversation(cid(convId), ctx))!;
     switch (cmd) {
       case "/help":
         return "/new · /stop · /status · /model <provider>/<id> · /project <name|none> · /plugins · /approve <name> · /reject <name> · /whoami";

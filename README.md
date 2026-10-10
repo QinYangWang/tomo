@@ -8,18 +8,23 @@
 
 ```bash
 bun install
-cp .env.example .env      # 填模型 key 和至少一个平台 token
 bun run start
 ```
 
-第一次私聊机器人，它会回你的平台 id，填进 `TOMO_OWNERS` 后重启。Web 客户端在 `http://localhost:8787`。
+不需要 `.env`。打开 `http://localhost:8787`：
+
+1. 第一次打开先设管理员密码。
+2. **设置 → AI 模型**：填任意一家的 API key（Anthropic、OpenAI、Gemini、OpenRouter、DeepSeek、xAI、Groq、Mistral），点「测试」，再选主模型和小模型。
+3. **设置 → 消息平台**：填 Telegram / Discord / Slack 的 token，「保存并连接」立即生效，不用重启。
+4. **设置 → 主人账号**：生成配对码，用你自己的账号私聊机器人发 `/pair <码>`。各平台都配对后，私聊共享同一个 Home 对话。
+
+key 和 token 用 AES-256-GCM 加密存在 `data/app.sqlite`，密钥在 `data/secret.key`（0600）。备份 `data/` 时这两个要一起。环境变量仍然可用（适合无界面部署），网页里保存的值优先。
 
 ## 部署到 VPS
 
 ```bash
 git clone <repo> /opt/tomo && cd /opt/tomo
-cp .env.example .env && vim .env
-docker compose up -d --build
+docker compose up -d --build          # 然后浏览器打开，按上面 1–4 配置
 # HTTPS: 用 deploy/Caddyfile 反代 127.0.0.1:8787
 ```
 
@@ -36,13 +41,13 @@ docker compose up -d --build
 ```
 src/
   main.ts                 启动：harness → gateway → 平台 → 定时器 → HTTP
-  config.ts               全部配置来自环境变量
+  config.ts               启动参数（端口、数据目录）；其余配置在网页设置页
   storage/bun-sqlite.ts   Pi Durable SQLite 核心的 bun:sqlite 适配器
   agent/
     harness.ts            模型、扩展注册、执行环境、resume
     extensions/           persona · memory · projects · skills · scheduler · delegate
     evolve/               reflection(反思循环) · plugins(自提案插件，热加载)
-  app/                    app.sqlite：记忆、项目、定时任务
+  app/                    app.sqlite：记忆、项目、定时任务、settings.ts（加密设置、登录、配对）
   gateway/                路由、身份、命令、投递
   channels/               telegram · discord · slack
   scheduler/loop.ts       定时任务触发
