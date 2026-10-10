@@ -21,7 +21,8 @@
  * REST
  *   GET  /api/conversations              home + bound chats
  *   POST /api/conversations/:id/messages {text}  submit as the owner (goes through the gateway)
- *   GET  /api/projects | /api/memories?q= | /api/schedules | /api/skills
+ *   GET  /api/projects | /api/projects/:id | /api/memories?q= | /api/schedules | /api/skills
+ *   DELETE /api/memories/:id | /api/schedules/:id
  * WebSocket
  *   /ws?conversation=<id>&token=<t>      server -> client: Pi Durable agent events (first a snapshot)
  *                                        client -> server: {"type":"input","text":"..."} | {"type":"abort"}
@@ -226,7 +227,15 @@ export function startHttp(gateway: Gateway) {
     memory.forget(Number(c.req.param("id")));
     return c.json({ ok: true });
   });
+  app.get("/api/projects/:id", (c) => {
+    const p = projects.get(c.req.param("id"));
+    return p ? c.json(p) : c.json({ error: "not found" }, 404);
+  });
   app.get("/api/schedules", (c) => c.json(schedules.list()));
+  app.delete("/api/schedules/:id", (c) => {
+    schedules.cancel(c.req.param("id"));
+    return c.json({ ok: true });
+  });
   app.get("/api/skills", (c) => c.json(skillIndex()));
 
   app.get(
