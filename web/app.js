@@ -2,6 +2,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 let token = localStorage.token || "";
+const desk = matchMedia("(min-width: 900px)");
 
 async function api(path, opts = {}) {
   const r = await fetch(path, {
@@ -101,11 +102,36 @@ function go(v) {
   for (const s of document.querySelectorAll(".view")) s.classList.toggle("on", s.id === `v-${v}`);
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.view === v);
   $("homeBtn").classList.toggle("on", v === "home");
+  markSide();
   if (v === "home") renderHome();
   if (v === "projects") renderProjects();
   if (v === "chat") setTimeout(() => ($("thread").scrollTop = 1e9));
 }
 $("homeBtn").onclick = () => go("home");
+
+// ---------- desktop sidebar ----------
+async function renderSide() {
+  if (!desk.matches) return;
+  const [cs, ps] = await Promise.all([api("/api/conversations"), api("/api/projects")]);
+  convs = cs;
+  $("sideConvs").innerHTML = cs.map((c) => {
+    const id = c.key === "home" ? "home" : c.id;
+    return `<button class="sideItem" data-conv="${esc(id)}"><span>${c.key === "home" ? "🏠" : "#"}</span><span class="grow">${c.key === "home" ? "Home" : esc(c.key)}</span></button>`;
+  }).join("");
+  $("sideProjects").innerHTML = ps.length ? ps.map((p) => `<button class="sideItem" data-proj="${esc(p.id)}"><span>📁</span><span class="grow">${esc(p.name)}</span></button>`).join("") : `<div class="sideItem muted" style="cursor:default">还没有项目</div>`;
+  $("sideConvs").querySelectorAll("[data-conv]").forEach((b) => (b.onclick = () => { if (b.dataset.conv !== current) connect(b.dataset.conv); go("chat"); }));
+  $("sideProjects").querySelectorAll("[data-proj]").forEach((b) => (b.onclick = () => openProject(b.dataset.proj)));
+  const S = await api("/api/settings");
+  $("sideModel").textContent = S.model.modelId;
+  markSide();
+}
+function markSide() {
+  document.querySelectorAll("#side .nav").forEach((b) => b.classList.toggle("on", b.dataset.nav === view));
+  document.querySelectorAll("#sideConvs [data-conv]").forEach((b) => b.classList.toggle("on", view === "chat" && b.dataset.conv === current));
+}
+document.querySelectorAll("#side .nav").forEach((b) => (b.onclick = () => (b.dataset.nav === "search" ? $("searchBtn").click() : go(b.dataset.nav))));
+$("sideMe").onclick = () => openSettings();
+desk.addEventListener("change", () => { renderSide(); if (view === "home") renderHome(); });
 for (const b of document.querySelectorAll("#tabs button")) b.onclick = () => go(b.dataset.view);
 
 // ---------- chat ----------
@@ -192,6 +218,7 @@ function connect(id) {
   current = id;
   const c = convs.find((x) => x.id === id || (id === "home" && x.key === "home"));
   $("convName").textContent = c && c.key !== "home" ? c.key : "Home";
+  markSide();
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const sock = (ws = new WebSocket(`${proto}://${location.host}/ws?conversation=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`));
   sock.onmessage = (ev) => {
@@ -261,12 +288,14 @@ async function renderHome() {
   else if (!connected.length) panels.push(`<button class="panel wide cta" data-go="settings:channels"><h3>下一步</h3><div class="big">连上一个消息平台</div><div class="sub">Telegram、Discord 或 Slack，填 token 就能上线</div></button>`);
   else if (!S.owners.length) panels.push(`<button class="panel wide cta" data-go="settings:profile"><h3>下一步</h3><div class="big">配对你的账号</div><div class="sub">让机器人认出你，私聊会进 Home 对话</div></button>`);
   const next = sch[0];
-  panels.push(`<button class="panel" data-go="settings:schedules"><h3>⏰ 接下来</h3>${next ? `<div class="big">${esc(when(next.next_run))}</div><div class="line">${esc(next.title)}</div><div class="sub">共 ${sch.length} 个定时任务</div>` : `<div class="line muted">没有定时任务</div><div class="sub">在对话里说「每天早上 8 点提醒我…」</div>`}</button>`);
-  panels.push(`<button class="panel" data-go="projects"><h3>📁 项目</h3>${ps.length ? `<div class="big">${ps.length} 个进行中</div><div class="line">${ps.slice(0, 3).map((p) => esc(p.name)).join(" · ")}</div>` : `<div class="line muted">还没有项目</div><div class="sub">说「帮我开个项目：…」</div>`}</button>`);
-  panels.push(`<button class="panel wide" data-go="settings:memory"><h3>🧠 最近记住的</h3>${mem.length ? mem.slice(0, 3).map((m) => `<div class="line">${esc(m.content)}</div>`).join("") + `<div class="sub">共 ${mem.length} 条 · 最近 ${ago(mem[0].updated_at)}</div>` : `<div class="line muted">还没有记忆。聊得越多，Tomo 越懂你。</div>`}</button>`);
-  panels.push(`<button class="panel" data-go="settings:channels"><h3>🔌 连接</h3><div class="chips">${S.channels.map((c) => `<span class="chip"><span class="dot ${dotCls(c.status.state)}"></span>${CH[c.id].label}</span>`).join("")}</div><div class="sub">${esc(S.model.provider)}/${esc(S.model.modelId)}</div></button>`);
-  panels.push(`<button class="panel" data-go="settings:skills"><h3>✨ 技能</h3><div class="big">${sk.length}</div><div class="line muted">${sk.length ? sk.slice(0, 3).map((s) => esc(s.name)).join(" · ") : "Tomo 会把反复做的事沉淀成技能"}</div></button>`);
-  $("panels").innerHTML = panels.join("");
+  const P = {};
+  P.next = (`<button class="panel" data-go="settings:schedules"><h3>⏰ 接下来</h3>${next ? `<div class="big">${esc(when(next.next_run))}</div><div class="line">${esc(next.title)}</div><div class="sub">共 ${sch.length} 个定时任务</div>` : `<div class="line muted">没有定时任务</div><div class="sub">在对话里说「每天早上 8 点提醒我…」</div>`}</button>`);
+  P.proj = (`<button class="panel" data-go="projects"><h3>📁 项目</h3>${ps.length ? `<div class="big">${ps.length} 个进行中</div><div class="line">${ps.slice(0, 3).map((p) => esc(p.name)).join(" · ")}</div>` : `<div class="line muted">还没有项目</div><div class="sub">说「帮我开个项目：…」</div>`}</button>`);
+  P.mem = (`<button class="panel wide" data-go="settings:memory"><h3>🧠 最近记住的</h3>${mem.length ? mem.slice(0, 3).map((m) => `<div class="line">${esc(m.content)}</div>`).join("") + `<div class="sub">共 ${mem.length} 条 · 最近 ${ago(mem[0].updated_at)}</div>` : `<div class="line muted">还没有记忆。聊得越多，Tomo 越懂你。</div>`}</button>`);
+  P.conn = (`<button class="panel" data-go="settings:channels"><h3>🔌 连接</h3><div class="chips">${S.channels.map((c) => `<span class="chip"><span class="dot ${dotCls(c.status.state)}"></span>${CH[c.id].label}</span>`).join("")}</div><div class="sub">${esc(S.model.provider)}/${esc(S.model.modelId)}</div></button>`);
+  P.skill = (`<button class="panel" data-go="settings:skills"><h3>✨ 技能</h3><div class="big">${sk.length}</div><div class="line muted">${sk.length ? sk.slice(0, 3).map((s) => esc(s.name)).join(" · ") : "Tomo 会把反复做的事沉淀成技能"}</div></button>`);
+  panels.push(...(desk.matches ? [P.next, P.proj, P.conn, P.mem, P.skill] : [P.next, P.proj, P.mem, P.conn, P.skill]));
+  $("panels").innerHTML = panels.join("").replaceAll("panel wide cta", desk.matches ? "panel full cta" : "panel wide cta");
   $("panels").querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => {
     const [where, page] = b.dataset.go.split(":");
     if (where === "settings") openSettings(page);
@@ -297,8 +326,10 @@ async function openProject(id) {
 
 // ---------- sheet ----------
 const stack = [];
+let redrawFn = null;
 function sheet(title, render, push = false) {
-  if (!push) stack.length = 0;
+  if (!push) { stack.length = 0; $("sheet").classList.remove("modal"); $("scrim").classList.remove("modalScrim"); }
+  redrawFn = null;
   stack.push({ title, render });
   drawSheet();
 }
@@ -313,6 +344,8 @@ function drawSheet() {
 }
 function closeSheet() {
   stack.length = 0;
+  redrawFn = null;
+  renderSide();
   $("scrim").hidden = $("sheet").hidden = true;
   if (view === "home") renderHome();
 }
@@ -368,6 +401,7 @@ async function openSettings(page) {
     security: ["安全", renderSecurity],
     about: ["关于", renderAbout],
   };
+  if (desk.matches) return openSettingsDesk(S, pages, page);
   sheet("设置", (body) => {
     const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
     const conn = S.channels.filter((c) => c.status.state === "connected").map((c) => CH[c.id].label);
@@ -383,7 +417,34 @@ async function openSettings(page) {
   });
   if (page && pages[page]) sheet(pages[page][0], pages[page][1], true);
 }
-const redraw = () => drawSheet();
+function openSettingsDesk(S, pages, page = "models") {
+  const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
+  if (!page) page = !hasKey ? "models" : !S.channels.some((c) => c.status.state === "connected") ? "channels" : "profile";
+  sheet("设置", (body) => {
+    const groups = [["profile", "schedules"], ["channels", "models"], ["memory", "skills"], ["security", "about"]];
+    const icons = { profile: "👤", schedules: "⏰", channels: "🔌", models: "🤖", memory: "🧠", skills: "✨", security: "🔒", about: "ℹ️" };
+    body.innerHTML = `<nav class="setNav">${groups.map((g) => g.map((k) => `<button class="sideItem" data-k="${k}"><span>${icons[k]}</span><span class="grow">${pages[k][0]}</span></button>`).join("")).join('<div class="sep"></div>')}<div class="sep"></div><button class="sideItem" id="logoutD" style="color:var(--err)"><span>↩︎</span><span class="grow">退出登录</span></button></nav><div class="setPane" id="setPane"></div>`;
+    const show = (k) => {
+      page = k;
+      body.querySelectorAll("[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === k));
+      const pane = $("setPane");
+      pane.innerHTML = "";
+      pane.scrollTop = 0;
+      const head = document.createElement("h3");
+      head.textContent = pages[k][0];
+      const inner = document.createElement("div");
+      pane.append(head, inner);
+      pages[k][1](inner);
+    };
+    body.querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => show(b.dataset.k)));
+    $("logoutD").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); token = localStorage.token = ""; location.reload(); };
+    show(page);
+    redrawFn = () => show(page);
+  });
+  $("sheet").classList.add("modal");
+  $("scrim").classList.add("modalScrim");
+}
+const redraw = () => (redrawFn ? redrawFn() : drawSheet());
 
 async function renderProfile(body) {
   const S = await api("/api/settings");
@@ -547,6 +608,7 @@ async function boot(firstRun) {
   $("gate").hidden = true;
   convs = await api("/api/conversations");
   connect("home");
+  renderSide();
   const S = await api("/api/settings");
   const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
   if (firstRun || !hasKey) {

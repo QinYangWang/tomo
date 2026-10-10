@@ -42,6 +42,21 @@
   </div>
 </header>
 
+<!-- desktop sidebar -->
+<aside id="side">
+  <div class="brand"><span class="mark sm">T</span><span>Tomo</span></div>
+  <button class="nav" data-nav="home"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+  <button class="nav" data-nav="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>搜索</button>
+  <button class="nav" data-nav="projects"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>项目</button>
+  <div class="sideScroll">
+    <div class="sideTitle">对话</div>
+    <div id="sideConvs"></div>
+    <div class="sideTitle">项目</div>
+    <div id="sideProjects"></div>
+  </div>
+  <button class="me" id="sideMe"><span class="avatar">我</span><span class="grow">设置</span><span class="muted small" id="sideModel"></span></button>
+</aside>
+
 <main>
   <!-- Home: glanceable panels -->
   <section class="view" id="v-home">
