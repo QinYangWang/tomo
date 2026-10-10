@@ -252,3 +252,17 @@ button.item:hover, a.item:hover { background: var(--linen); }
   .setPane { padding: 0; }
   .row2 { grid-template-columns: 1fr; }
 }
+
+/* project rows: menu button shows on hover */
+.pRow { cursor: pointer; position: relative; }
+.pRow .pMenuBtn { display: none; width: 28px; height: 28px; margin: -4px -6px -4px 0; }
+.pRow:hover .when, .pRow.on .when { display: none; }
+.pRow:hover .pMenuBtn, .pRow.on .pMenuBtn { display: grid; }
+@media (hover: none) { .pRow .when { display: none; } .pRow .pMenuBtn { display: grid; } }
+.renameBox { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1.5px solid var(--accent); border-radius: 8px; padding: 3px 8px; outline: none; }
+.projBar h1 .renameBox { font-size: 22px; font-family: var(--serif); }
+.pop { position: fixed; z-index: 40; min-width: 168px; background: var(--surface); border-radius: 14px; box-shadow: 0 12px 36px rgba(3, 3, 2, .18), 0 0 0 1px var(--ash); padding: 6px; animation: pop .12s ease-out; }
+.pop button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; padding: 9px 10px; border-radius: 9px; cursor: pointer; text-align: left; }
+.pop button:hover { background: var(--linen); }
+.pop .danger { color: var(--err); }
+.pop .danger.armed { background: color-mix(in srgb, var(--err) 12%, transparent); font-weight: 600; }

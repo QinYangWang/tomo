@@ -71,10 +71,12 @@ confidence: stated(用户亲口说) | inferred(代理推断)
 
 每个项目是一个**独立的线程和 agent 上下文**：
 
-- 新建项目（网页「项目」侧栏的 + 按钮，或在聊天里让 Tomo `project_create`）会创建一个**全新的会话**，不从任何对话 fork，所以每个项目都从零开始。会话的 `app.meta` 记着 `kind: "project"` 和 `projectId`，`cwd` 是 `data/projects/<id>/`。
+- 新建项目（网页「项目」侧栏的 + 按钮直接开一个新对话，不弹窗；或在聊天里让 Tomo `project_create`）会创建一个**全新的会话**，不从任何对话 fork，所以每个项目都从零开始。会话的 `app.meta` 记着 `kind: "project"` 和 `projectId`，`cwd` 是 `data/projects/<id>/`。
 - **记忆隔离**：记忆按空间存，`global` 属于日常聊天，每个项目 id 是自己的空间。项目里 `remember`、`recall` 和反思只碰本项目的空间；聊天只碰 `global`。两边互相看不到对方的记忆。
 - 聊天只知道**有哪些项目**（名字和状态），不知道简报、记忆或对话内容。问到项目细节时，Tomo 会让用户去对应项目里聊。
 - 项目 **brief** 只注入该项目自己的会话，由它主动维护（`project_update_brief`）。
+- 新项目默认叫 `Untitled project`。项目 agent 收到第一条消息时用 `project_rename` 总结出项目名；如果它没改名，gateway 就截取第一条消息作为名字。
+- 侧栏每个项目都有菜单：重命名（就地编辑）、归档或恢复、删除（二次确认）。删除会清掉项目行、它的记忆空间和工作目录。
 - `/project` 命令只列项目，不再在当前对话里切换项目。
 
 ## 6. 持续进化

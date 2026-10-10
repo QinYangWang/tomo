@@ -22,7 +22,7 @@
  *   GET  /api/conversations              home + bound chats
  *   POST /api/conversations/:id/messages {text}  submit as the owner (goes through the gateway)
  *   GET  /api/projects | /api/projects/:id (ensures its own conversation) | /api/memories?q=&scope= | /api/schedules | /api/skills
- *   POST /api/projects {name} (new project, fresh thread) · PATCH /api/projects/:id {status}
+ *   POST /api/projects {name?} (new "Untitled project", fresh thread) · PATCH /api/projects/:id {status?, name?} · DELETE /api/projects/:id
  *   DELETE /api/memories/:id | /api/schedules/:id
  *   GET/POST /api/panels · POST /api/panels/:id/refresh · PUT /api/panels/:id {instruction} · DELETE /api/panels/:id
  *   GET  /api/history?q=&conversation=   transcript search
@@ -243,18 +243,22 @@ export function startHttp(gateway: Gateway) {
     return c.json({ ...p, conversation_id });
   });
   app.post("/api/projects", async (c) => {
-    const { name } = await c.req.json<{ name: string }>();
-    if (!name?.trim()) return c.json({ error: "Give the project a name" }, 400);
-    const p = projects.create(name.trim());
+    const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
+    const p = projects.create(name?.trim() || undefined);
     const conversation_id = await gateway.projectConversation(p.id);
     return c.json({ ...projects.get(p.id)!, conversation_id });
   });
   app.patch("/api/projects/:id", async (c) => {
     const p = projects.get(c.req.param("id"));
     if (!p) return c.json({ error: "not found" }, 404);
-    const { status } = await c.req.json<{ status: "active" | "archived" }>();
+    const { status, name } = await c.req.json<{ status?: "active" | "archived"; name?: string }>();
     if (status) projects.setStatus(p.id, status);
+    if (name?.trim()) projects.rename(p.id, name);
     return c.json(projects.get(p.id));
+  });
+  app.delete("/api/projects/:id", (c) => {
+    projects.remove(c.req.param("id"));
+    return c.json({ ok: true });
   });
   // Home panels
   app.get("/api/panels", (c) => c.json(panels.list()));

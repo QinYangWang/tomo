@@ -154,6 +154,7 @@ const toolLabel = (name, args) => {
   return hint ? `${base} · ${String(hint).slice(0, 60)}` : base;
 };
 function add(el) {
+  $("log").querySelector(".empty, .projStart")?.remove();
   $("log").append(el);
   if (typing) $("log").append(typing);
   $("thread").scrollTop = 1e9;
@@ -271,6 +272,7 @@ $("composer").onsubmit = (ev) => {
   const text = $("t").value.trim();
   if (!text || ws?.readyState !== 1) return;
   ws.send(JSON.stringify({ type: "input", text }));
+  if (view === "projects") watchTitle();
   $("t").value = "";
   $("t").style.height = "";
 };
@@ -423,33 +425,94 @@ function toggleDrawer(force, remember = true) {
   if (open) drawDrawer();
 }
 $("projAdd").onclick = () => newProject();
+const UNTITLED = "Untitled project";
+const pname = (p) => (p.name === UNTITLED ? "未命名项目" : p.name);
 function drawDrawer() {
   const active = projectList.filter((p) => p.status === "active"), archived = projectList.filter((p) => p.status !== "active");
-  const row = (p) => `<button class="dItem ${p.id === currentProject ? "on" : ""}" data-id="${esc(p.id)}">${ic("projects", 18)}<span class="grow">${esc(p.name)}</span><span class="when">${ago(p.updated_at)}</span></button>`;
+  const row = (p) => `<div class="dItem pRow ${p.id === currentProject ? "on" : ""}" data-id="${esc(p.id)}">${ic("projects", 18)}<span class="grow pName">${esc(pname(p))}</span><span class="when">${ago(p.updated_at)}</span><button class="icon sm pMenuBtn" data-menu="${esc(p.id)}" data-tip="更多">${ic("more", 16)}</button></div>`;
   $("drawerList").innerHTML = (active.length ? active.map(row).join("") : `<div class="empty">还没有项目</div>`) + (archived.length ? `<div class="gtitle" style="margin:14px 10px 4px">已归档</div>${archived.map(row).join("")}` : "");
-  $("drawerList").querySelectorAll("[data-id]").forEach((b) => (b.onclick = () => {
+  $("drawerList").querySelectorAll(".pRow").forEach((b) => (b.onclick = (e) => {
+    if (e.target.closest("button, input")) return;
     selectProject(b.dataset.id);
     if (innerWidth < 1100) toggleDrawer(false, false);
   }));
+  $("drawerList").querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); projectMenu(b.dataset.menu, b); }));
 }
-function newProject() {
-  sheet("新建项目", (body) => {
-    body.innerHTML = `<p class="muted" style="margin:0 2px 12px">每个项目是独立的对话，有自己的记忆和工作目录，从零开始。日常聊天只知道有这个项目，不知道里面的内容。</p>
-      <input class="searchBox" id="pn" placeholder="项目名称，比如：东京旅行 12 月" />
-      <div class="btns" style="margin-top:14px;justify-content:flex-end"><span class="msg" id="pnMsg"></span><button class="primary" id="pnGo">创建</button></div>`;
-    $("pn").focus();
-    $("pn").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) $("pnGo").click(); };
-    $("pnGo").onclick = async () => {
-      const name = $("pn").value.trim();
-      if (!name) return;
-      const p = await api("/api/projects", { method: "POST", body: { name } });
-      if (p.error) return flash($("pnMsg"), p.error);
-      closeSheet();
-      currentProject = localStorage.project = p.id;
-      if (view !== "projects") go("projects"); else renderProjects();
-      setTimeout(() => $("t").focus(), 300);
-    };
-  }, { small: true });
+// New project: no dialog, just a fresh thread named "Untitled project" until its first message.
+async function newProject() {
+  const p = await api("/api/projects", { method: "POST", body: {} });
+  if (p.error) return;
+  currentProject = localStorage.project = p.id;
+  if (view !== "projects") go("projects"); else await renderProjects();
+  setTimeout(() => $("t").focus(), 200);
+}
+// Popover menu for one project: rename (inline), archive/restore, delete (confirm in place).
+function projectMenu(id, anchor) {
+  closePop();
+  const p = projectList.find((x) => x.id === id) ?? openProject;
+  if (!p) return;
+  const pop = document.createElement("div");
+  pop.className = "pop";
+  pop.innerHTML = `<button data-a="rename">${ic("edit", 16)}重命名</button>
+    <button data-a="archive">${ic(p.status === "active" ? "archive" : "refresh", 16)}${p.status === "active" ? "归档" : "恢复"}</button>
+    <button data-a="delete" class="danger">${ic("trash", 16)}<span>删除</span></button>`;
+  document.body.append(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = `${Math.min(r.bottom + 6, innerHeight - pop.offsetHeight - 8)}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8))}px`;
+  setTimeout(() => document.addEventListener("click", closePop, { once: true }));
+  pop.onclick = async (e) => {
+    const a = e.target.closest("button")?.dataset.a;
+    if (!a) return;
+    e.stopPropagation();
+    if (a === "rename") { closePop(); return renameInline(p); }
+    if (a === "archive") {
+      closePop();
+      await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: "PATCH", body: { status: p.status === "active" ? "archived" : "active" } });
+      return renderProjects();
+    }
+    if (a === "delete") {
+      const b = e.target.closest("button");
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.querySelector("span").textContent = "确认删除？对话和记忆都会删掉"; return; }
+      closePop();
+      await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+      if (currentProject === p.id) currentProject = localStorage.project = "";
+      return renderProjects();
+    }
+  };
+}
+function closePop() { document.querySelectorAll(".pop").forEach((x) => x.remove()); }
+function renameInline(p) {
+  const done = async (name) => {
+    if (name && name !== p.name) await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: "PATCH", body: { name } });
+    renderProjects();
+  };
+  const host = (!$("drawer").hidden && $("drawerList").querySelector(`[data-id="${CSS.escape(p.id)}"] .pName`)) || (p.id === currentProject && $("projBar").querySelector("h1"));
+  if (!host) return;
+  const input = document.createElement("input");
+  input.className = "renameBox";
+  input.value = p.name === UNTITLED ? "" : p.name;
+  input.placeholder = "项目名称";
+  host.replaceChildren(input);
+  input.focus();
+  input.select();
+  let settled = false;
+  const finish = (save) => { if (settled) return; settled = true; done(save ? input.value.trim() : ""); };
+  input.onkeydown = (e) => {
+    if (e.key === "Enter" && !e.isComposing) finish(true);
+    if (e.key === "Escape") finish(false);
+  };
+  input.onblur = () => finish(true);
+}
+// The project agent names an untitled project on its first turn: watch for the new name.
+function watchTitle() {
+  if (!openProject || openProject.name !== UNTITLED) return;
+  const id = openProject.id;
+  [3, 8, 15, 30, 60].forEach((sec) => setTimeout(async () => {
+    if (!openProject || openProject.id !== id || openProject.name !== UNTITLED) return;
+    const p = await api(`/api/projects/${encodeURIComponent(id)}`);
+    if (p.name !== UNTITLED) { openProject = p; $("projBar").querySelector("h1").textContent = p.name; projectList = await api("/api/projects"); if (!$("drawer").hidden) drawDrawer(); }
+  }, sec * 1000));
 }
 async function renderProjects() {
   projectList = await api("/api/projects");
@@ -460,7 +523,7 @@ async function renderProjects() {
     openProject = null;
     $("projBar").innerHTML = "";
     $("v-chat").append($("chatPane"));
-    $("projSlot").innerHTML = `<div class="projEmpty"><p class="eyebrow">项目</p><h2 class="serif">还没有项目</h2><p class="muted">项目适合要花好几天的事：一次旅行、一次搬家、一个产品发布。每个项目都是独立的对话，有自己的记忆。</p><div class="btns" style="justify-content:center"><button class="primary" id="np0">新建项目</button></div></div>`;
+    $("projSlot").innerHTML = `<div class="projEmpty"><p class="eyebrow">项目</p><h2 class="serif">还没有项目</h2><p class="muted">项目适合要花好几天的事：一次旅行、一次搬家、一个产品发布。每个项目都是独立的对话，有自己的记忆。</p><div class="btns" style="justify-content:center"><button class="primary" id="np0">开始一个项目</button></div></div>`;
     $("np0").onclick = newProject;
     return;
   }
@@ -470,20 +533,14 @@ async function selectProject(id) {
   currentProject = localStorage.project = id;
   if (!$("drawer").hidden) drawDrawer();
   const p = (openProject = await api(`/api/projects/${encodeURIComponent(id)}`));
-  $("projBar").innerHTML = `<div style="flex:1;min-width:0"><p class="eyebrow">${p.status === "active" ? "项目" : "已归档项目"} · 独立记忆</p><h1 class="serif">${esc(p.name)}</h1></div>
+  $("projBar").innerHTML = `<div style="flex:1;min-width:0"><p class="eyebrow">${p.status === "active" ? "项目" : "已归档项目"} · 独立记忆</p><h1 class="serif">${esc(pname(p))}</h1></div>
     <button class="icon" id="pBrief" data-tip="简报与记忆">${ic("info", 20)}</button>
     <button class="icon" id="pMore" data-tip="更多">${ic("more", 20)}</button>`;
   $("projSlot").querySelector(".projEmpty")?.remove();
   $("projSlot").append($("chatPane"));
   if (current !== p.conversation_id) connect(p.conversation_id, "project");
   $("pBrief").onclick = () => projectInfo(p);
-  $("pMore").onclick = () => sheet(p.name, (body) => {
-    body.innerHTML = `<div class="group"><button class="item" id="pArch">${ic(p.status === "active" ? "check" : "refresh", 20)}<span class="grow">${p.status === "active" ? "归档这个项目" : "恢复为进行中"}</span></button></div>`;
-    $("pArch").onclick = async () => {
-      await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: "PATCH", body: { status: p.status === "active" ? "archived" : "active" } });
-      closeSheet();
-    };
-  }, { small: true });
+  $("pMore").onclick = (e) => { e.stopPropagation(); projectMenu(p.id, e.currentTarget); };
 }
 async function projectInfo(p) {
   const mem = await api(`/api/memories?scope=${encodeURIComponent(p.id)}`);

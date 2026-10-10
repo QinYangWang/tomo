@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "../config.ts";
 import { db, now } from "./db.ts";
@@ -12,6 +12,9 @@ try {
 } catch {
   /* already there */
 }
+
+/** Name a new project carries until its first message is summarized into a real one. */
+export const UNTITLED = "Untitled project";
 
 export type Project = { id: string; name: string; brief: string; status: string; updated_at: number; conversation_id: string | null };
 
@@ -44,8 +47,8 @@ export const projects = {
         undefined)
     );
   },
-  create(name: string, brief = ""): Project {
-    let id = slug(name);
+  create(name: string = UNTITLED, brief = ""): Project {
+    let id = name === UNTITLED ? `p-${Date.now().toString(36)}` : slug(name);
     if (this.get(id)) id = `${id}-${Date.now().toString(36).slice(-4)}`;
     db.run("INSERT INTO projects(id, name, brief, created_at, updated_at) VALUES (?,?,?,?,?)", [id, name, brief, now(), now()]);
     this.dir(id);
@@ -63,7 +66,24 @@ export const projects = {
   touch(id: string) {
     db.run("UPDATE projects SET updated_at = ? WHERE id = ?", [now(), id]);
   },
+  rename(id: string, name: string) {
+    db.run("UPDATE projects SET name = ?, updated_at = ? WHERE id = ?", [name.trim().slice(0, 60) || UNTITLED, now(), id]);
+  },
+  /** Deletes the project, its memory space and its working directory. Its transcript stays in harness storage, unreachable. */
+  remove(id: string) {
+    db.run("DELETE FROM memories WHERE scope = ?", [id]);
+    db.run("DELETE FROM projects WHERE id = ?", [id]);
+    rmSync(join(config.projectsDir, id), { recursive: true, force: true });
+  },
   setStatus(id: string, status: "active" | "archived") {
     db.run("UPDATE projects SET status = ?, updated_at = ? WHERE id = ?", [status, now(), id]);
   },
 };
+
+/** First line of a message, trimmed to a title (CJK counts tighter than Latin). */
+export function fallbackTitle(text: string): string {
+  const line = text.trim().split("\n")[0]!.replace(/\s+/g, " ");
+  const cjk = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(line);
+  const max = cjk ? 16 : 40;
+  return line.length > max ? `${line.slice(0, max).trimEnd()}…` : line || UNTITLED;
+}

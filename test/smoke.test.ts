@@ -95,5 +95,12 @@ test("turn, memory, delivery, restart", async () => {
   expect(memory.search("Shibuya").length).toBe(0);
   expect(memory.search("Shibuya", { scope: proj.id }).length).toBe(1);
   expect(memory.search("window", { scope: proj.id }).length).toBe(0);
+  const untitled = projects.create();
+  expect(untitled.name).toBe("Untitled project");
+  const { fallbackTitle } = await import("../src/app/projects.ts");
+  expect(fallbackTitle("帮我规划十二月去东京的五天行程，预算两万")).toBe("帮我规划十二月去东京的五天行程，…");
+  projects.remove(proj.id);
+  expect(projects.get(proj.id)).toBeUndefined();
+  expect(memory.search("Shibuya", { scope: proj.id }).length).toBe(0);
   await again.harness.close(ctx);
 });

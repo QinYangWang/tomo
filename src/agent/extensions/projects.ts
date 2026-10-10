@@ -7,7 +7,7 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
-import { projects } from "../../app/projects.ts";
+import { projects, UNTITLED } from "../../app/projects.ts";
 import { MetaDoc, text } from "../util.ts";
 
 const projectList = defineTool({
@@ -24,13 +24,26 @@ const projectList = defineTool({
 const projectCreate = defineTool({
   name: "project_create",
   description:
-    "Start a new project for a multi-step effort (a trip, a launch, a job search) when the owner agrees. It opens as its own fresh thread with its own memory; the owner continues in it from Projects. Pass only a name: details belong inside the project, not here.",
-  parameters: Type.Object({ name: Type.String() }),
+    "Start a new project for a multi-step effort (a trip, a launch, a job search) when the owner agrees. It opens as its own fresh thread with its own memory; the owner continues in it from Projects. Pass only a short name: details belong inside the project, not here.",
+  parameters: Type.Object({ name: Type.Optional(Type.String()) }),
   execute: async (args, api, context) => {
     const meta = await api.snapshot(MetaDoc, api.conversationId, context);
     if (meta?.projectId) return text("You are inside a project; new projects are started from the owner's chats or the Projects page.", true);
     const p = projects.create(args.name);
     return text(`Created project "${p.name}" (${p.id}). It starts fresh: tell the owner to open it under Projects to begin.`);
+  },
+});
+
+const projectRename = defineTool({
+  name: "project_rename",
+  description: "Rename this project. A new project is called \"Untitled project\" until you name it from the owner's first message.",
+  parameters: Type.Object({ name: Type.String({ description: "2 to 6 words (or up to 12 CJK characters) in the owner's language." }) }),
+  replay: "safe",
+  execute: async (args, api, context) => {
+    const meta = await api.snapshot(MetaDoc, api.conversationId, context);
+    if (!meta?.projectId) return text("Only a project's own thread can rename it.", true);
+    projects.rename(meta.projectId, args.name);
+    return text(`Renamed to "${args.name.trim()}".`);
   },
 });
 
@@ -63,14 +76,15 @@ const projectArchive = defineTool({
 
 export const Projects = defineExtension({
   name: "projects",
-  tools: [projectList, projectCreate, projectBrief, projectArchive],
+  tools: [projectList, projectCreate, projectRename, projectBrief, projectArchive],
   sections: [
     section("project", async (input, context) => {
       const meta = await input.read.snapshot(MetaDoc, input.conversationId, context);
       if (meta?.projectId) {
         const p = projects.get(meta.projectId);
         if (!p) return undefined;
-        return `You are working inside the project "${p.name}" (id ${p.id}). This thread, its memory and its brief belong to this project only. Working directory: ${projects.dir(p.id)}
+        const naming = p.name === UNTITLED ? `\nThis project has no name yet. Before you answer the owner's first message, call project_rename with a short name that sums up what the project is about.` : "";
+        return `${naming}You are working inside the project "${p.name}" (id ${p.id}). This thread, its memory and its brief belong to this project only. Working directory: ${projects.dir(p.id)}
 Brief (consult before acting, keep current with project_update_brief):
 ${p.brief || "(empty: this project just started. Learn what it is for, then write the brief.)"}`;
       }

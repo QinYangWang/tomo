@@ -12,7 +12,7 @@ import type { Agent } from "../agent/harness.ts";
 import { noteTurn } from "../agent/evolve/reflection.ts";
 import { pluginAdmin } from "../agent/evolve/plugins.ts";
 import { panels, type Panel } from "../app/panels.ts";
-import { projects } from "../app/projects.ts";
+import { fallbackTitle, projects, UNTITLED } from "../app/projects.ts";
 import { pairingCodes, runtime } from "../app/settings.ts";
 import { cid, ctx, messageText, MetaDoc, roleOf } from "../agent/util.ts";
 import { bindings, routes } from "./bindings.ts";
@@ -163,6 +163,8 @@ export class Gateway {
         }
       } finally {
         clearInterval(typing);
+        // The project agent names an untitled project on its first turn; if it didn't, use the message itself.
+        if (proj && projects.get(proj.id)?.name === UNTITLED) projects.rename(proj.id, fallbackTitle(m.text));
       }
     })();
     this.inflight.set(convId, work);
@@ -306,3 +308,4 @@ export class Gateway {
     }
   }
 }
+
