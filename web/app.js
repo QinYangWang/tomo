@@ -39,8 +39,7 @@ const CADENCE = { none: "不自动刷新", hourly: "每小时刷新", daily: "�
 
 // static icons
 for (const [v, name] of [["home", "home"], ["chat", "chat"], ["projects", "projects"]]) $("dock").querySelector(`[data-view="${v}"]`).insertAdjacentHTML("afterbegin", ic(name));
-$("newPanelBtn").innerHTML = `${ic("add", 16)}新建面板`;
-$("chatSearch").innerHTML = ic("search", 20);
+
 $("setBtn").innerHTML = ic("settings");
 $("sendBtn").innerHTML = ic("send");
 $("sheetBack").innerHTML = ic("back");
@@ -108,14 +107,22 @@ $("gateForm").onsubmit = async (e) => {
   boot(setupMode);
 };
 
-// ---------- navigation: the dock switches views; each view's actions live in its own header ----------
+// ---------- navigation: dock + the context button at the top-left ----------
 let view = "home";
-const VIEWS = ["home", "chat", "projects"];
+const CTX = {
+  home: { icon: "add", tip: "新建面板", run: () => newPanel() },
+  chat: { icon: "search", tip: "搜索聊天记录", run: () => searchHistory() },
+  projects: { icon: "sidebar", tip: "项目列表", run: () => toggleDrawer() },
+};
+const VIEWS = Object.keys(CTX);
 function go(v) {
   view = v;
   localStorage.view = v;
   for (const s of document.querySelectorAll(".view")) s.classList.toggle("on", s.id === `v-${v}`);
   for (const b of $("dock").querySelectorAll("button")) b.classList.toggle("on", b.dataset.view === v);
+  $("ctxBtn").innerHTML = ic(CTX[v].icon);
+  $("ctxBtn").dataset.tip = CTX[v].tip;
+  $("ctxBtn").setAttribute("aria-label", CTX[v].tip);
   if (v !== "projects") toggleDrawer(false, false);
   if (v === "home") renderHome();
   if (v === "projects") renderProjects();
@@ -126,8 +133,7 @@ function go(v) {
   }
 }
 for (const b of $("dock").querySelectorAll("button")) b.onclick = () => go(b.dataset.view);
-$("newPanelBtn").onclick = () => newPanel();
-$("chatSearch").onclick = () => searchHistory();
+$("ctxBtn").onclick = () => CTX[view].run();
 $("setBtn").onclick = () => openSettings();
 
 // ---------- chat ----------
@@ -425,7 +431,7 @@ function toggleDrawer(force, remember = true) {
 $("projAdd").onclick = () => newProject();
 // On phones the drawer is an overlay: a tap anywhere outside it closes it.
 document.addEventListener("click", (e) => {
-  if ($("drawer").hidden || innerWidth >= 1100 || e.target.closest("#drawer, #pDrawer, .pop")) return;
+  if ($("drawer").hidden || innerWidth >= 1100 || e.target.closest("#drawer, #ctxBtn, .pop")) return;
   toggleDrawer(false, false);
 });
 const UNTITLED = "Untitled project";
@@ -548,8 +554,7 @@ async function renderProjects() {
   else if (!$("drawer").hidden) drawDrawer();
   if (!currentProject) {
     openProject = null;
-    $("projBar").innerHTML = `<button class="icon" id="pDrawer" data-tip="项目列表" aria-label="项目列表">${ic("sidebar", 20)}</button>`;
-    $("pDrawer").onclick = () => toggleDrawer();
+    $("projBar").innerHTML = "";
     $("v-chat").append($("chatPane"));
     $("projSlot").innerHTML = `<div class="projEmpty"><p class="eyebrow">项目</p><h2 class="serif">还没有项目</h2><p class="muted">项目适合要花好几天的事：一次旅行、一次搬家、一个产品发布。每个项目都是独立的对话，有自己的记忆。</p><div class="btns" style="justify-content:center"><button class="primary" id="np0">开始一个项目</button></div></div>`;
     $("np0").onclick = newProject;
@@ -562,12 +567,10 @@ async function selectProject(id) {
   if (!$("drawer").hidden) drawDrawer();
   const p = (openProject = await api(`/api/projects/${encodeURIComponent(id)}`));
   const line = briefLine(p.brief);
-  $("projBar").innerHTML = `<button class="icon" id="pDrawer" data-tip="项目列表" aria-label="项目列表">${ic("sidebar", 20)}</button>
-    <div class="pTitle"><h1 class="serif">${esc(pname(p))}</h1>${line ? `<button class="briefLine" id="pLine"><span>${esc(line)}</span>${ic("right", 14)}</button>` : ""}</div>
+  $("projBar").innerHTML = `<div class="pTitle"><h1 class="serif">${esc(pname(p))}</h1>${line ? `<button class="briefLine" id="pLine"><span>${esc(line)}</span>${ic("right", 14)}</button>` : ""}</div>
     <button class="icon" id="pSearch" data-tip="搜索这个项目" aria-label="搜索">${ic("search", 20)}</button>
     <button class="icon" id="pBrief" data-tip="简报与记忆" aria-label="简报与记忆">${ic("info", 20)}</button>
     <button class="icon" id="pMore" data-tip="更多" aria-label="更多">${ic("more", 20)}</button>`;
-  $("pDrawer").onclick = () => toggleDrawer();
   $("pSearch").onclick = () => searchHistory();
   if ($("pLine")) $("pLine").onclick = () => projectInfo(p);
   $("projSlot").querySelector(".projEmpty")?.remove();

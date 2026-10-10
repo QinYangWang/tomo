@@ -25,8 +25,9 @@
   </form>
 </div>
 
-<!-- floating top bar: the dock only switches views; settings sits beside it -->
+<!-- floating top bar: context button (top-left) · dock (centered) · settings (top-right), one baseline -->
 <header id="bar">
+  <button class="float round" id="ctxBtn" data-tip=""></button>
   <nav class="float dock" id="dock">
     <button data-view="home" aria-label="Home"><span class="dl">Home</span></button>
     <button data-view="chat" aria-label="对话"><span class="dl">对话</span></button>
@@ -44,13 +45,14 @@
 <main>
   <section class="view" id="v-home">
     <div class="page">
-      <div class="homeHead"><div><p class="eyebrow" id="today"></p><h1 class="hello serif" id="hello">你好</h1></div><button class="ghost withIcon" id="newPanelBtn"></button></div>
+      <p class="eyebrow" id="today"></p>
+      <h1 class="hello serif" id="hello">你好</h1>
       <div class="panels" id="panels"></div>
     </div>
   </section>
 
   <section class="view" id="v-chat">
-    <div class="convbar"><span></span><button class="pill" id="convPick"><span id="convName">Home</span><span class="chev"></span></button><button class="icon" id="chatSearch" data-tip="搜索聊天记录 · ⌘K" aria-label="搜索聊天记录"></button></div>
+    <div class="convbar"><button class="pill" id="convPick"><span id="convName">Home</span><span class="chev"></span></button></div>
     <!-- one chat pane, moved between the chat view and the open project's thread -->
     <div id="chatPane">
       <div id="thread"><div class="threadInner" id="log"></div></div>
