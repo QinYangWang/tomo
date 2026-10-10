@@ -4,12 +4,14 @@
  * and the harness finishes an interrupted run after restart.
  */
 import { AssistantEntry } from "@earendil-works/pi-durable";
+import { panels } from "../app/panels.ts";
 import { schedules } from "../app/schedules.ts";
 import { cid, ctx, messageText } from "../agent/util.ts";
 import type { Gateway } from "../gateway/gateway.ts";
 
 export function startScheduler(gateway: Gateway, everyMs = 20_000) {
   const tick = async () => {
+    for (const p of panels.claimDue()) void gateway.buildPanel(p, "refresh").catch((e) => console.error("[panel]", p.id, e));
     for (const s of schedules.due()) {
       const firedAt = s.next_run!;
       schedules.advance(s, firedAt);

@@ -45,7 +45,7 @@ export const Delegate: Extension = defineExtension({
         const hits: string[] = [];
         let cursor: any = undefined;
         for (let page = 0; page < 50 && hits.length < (args.limit ?? 10); page++) {
-          const res: any = await api.commit((tx) => tx.scanEntries({ conversationId: api.conversationId, order: "desc", after: cursor } as any, 200), context);
+          const res: any = await api.commit((tx) => (tx as any).scanEntries({ conversationId: api.conversationId, order: "descending" }, 200, cursor), context);
           for (const e of res.items) {
             const r = roleOf(e);
             if (r !== "user" && r !== "assistant") continue;

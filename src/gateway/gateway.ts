@@ -11,9 +11,10 @@ import { AssistantEntry, configure, type Harness } from "@earendil-works/pi-dura
 import type { Agent } from "../agent/harness.ts";
 import { noteTurn } from "../agent/evolve/reflection.ts";
 import { pluginAdmin } from "../agent/evolve/plugins.ts";
+import { panels, type Panel } from "../app/panels.ts";
 import { projects } from "../app/projects.ts";
 import { pairingCodes, runtime } from "../app/settings.ts";
-import { cid, ctx, messageText, MetaDoc } from "../agent/util.ts";
+import { cid, ctx, messageText, MetaDoc, roleOf } from "../agent/util.ts";
 import { bindings, routes } from "./bindings.ts";
 import { chunk, type ChannelAdapter, type Inbound } from "./types.ts";
 
@@ -168,6 +169,67 @@ export class Gateway {
     } finally {
       this.inflight.delete(convId);
     }
+  }
+
+  /** The background conversation panels are built in, so their work never shows up in a chat. */
+  private async panelConversation() {
+    const key = "system:panels";
+    const id = bindings.get(key);
+    if (id) {
+      const c = await this.harness.conversation(cid(id), ctx);
+      if (c) return c;
+    }
+    const c = await this.harness.createConversation({ ownership: { kind: "ownerless" }, agent: { model: runtime.model() } }, ctx);
+    await c.commit(async (tx) => {
+      Object.assign(await tx.doc(MetaDoc, c.id), { kind: "system", title: "Home panels" });
+    }, ctx);
+    bindings.set(key, String(c.id), "system");
+    return c;
+  }
+
+  /** Build or refresh one panel. Resolves when the run settles. */
+  async buildPanel(p: Panel, reason: "create" | "refresh" | "edit", instruction?: string) {
+    if (reason !== "refresh") panels.setStatus(p.id, "building");
+    const conv = await this.panelConversation();
+    const lines = [
+      `[Home panel ${p.id}] ${reason === "create" ? "New panel" : reason === "edit" ? "Change this panel" : "Scheduled refresh"}.`,
+      `What the owner wants on it: ${p.request}`,
+      instruction ? `Requested change: ${instruction}` : "",
+      reason !== "create" && p.body ? `Current card:\n${p.body}` : "",
+      `Gather current, real values with your tools (memory, schedules, projects, fetch_url, ...). Never invent a value: when a source can't be reached, say so on the card.`,
+      `Then call panel_publish with id "${p.id}". Reply with one short line after publishing.`,
+    ].filter(Boolean);
+    const sub = await conv.submit({ type: "input", content: lines.join("\n"), requestId: `panel:${p.id}:${reason}:${Date.now()}`, whenBusy: "followUp" }, ctx);
+    const settled = await sub.wait(ctx);
+    const now = panels.get(p.id);
+    if (now && now.status === "building") {
+      const why = settled.status === "done" && settled.type === "input" && settled.answer ? messageText({ model: [settled.answer] } as any) : (settled as any).reason ?? settled.status;
+      panels.setStatus(p.id, "error", String(why || "Tomo didn't publish the panel").slice(0, 300));
+    }
+  }
+
+  /** Text search over a conversation's whole transcript, newest first. */
+  async searchHistory(convId: string, needle: string, limit = 30) {
+    const conv = await this.harness.conversation(cid(convId), ctx);
+    if (!conv) return [];
+    const q = needle.toLowerCase();
+    const hits: { entryId: string; role: string; text: string; at: number | null }[] = [];
+    let cursor: any = undefined;
+    for (let page = 0; page < 50 && hits.length < limit; page++) {
+      const res: any = await conv.commit((tx: any) => tx.scanEntries({ conversationId: conv.id, order: "descending" }, 200, cursor), ctx);
+      for (const e of res.items) {
+        const r = roleOf(e);
+        if (r !== "user" && r !== "assistant") continue;
+        const t = messageText(e);
+        if (!t.toLowerCase().includes(q)) continue;
+        const ts = (e.model?.[0] as any)?.timestamp ?? null;
+        hits.push({ entryId: String(e.id), role: r, text: t.slice(0, 600), at: ts });
+        if (hits.length >= limit) break;
+      }
+      if (!res.next) break;
+      cursor = res.next;
+    }
+    return hits;
   }
 
   private typing(convId: string) {

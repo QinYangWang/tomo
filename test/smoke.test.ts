@@ -59,5 +59,27 @@ test("turn, memory, delivery, restart", async () => {
   const view = await again.root.viewState(ctx);
   expect(view.value.entries.filter((e) => e.kind === "pi.user").length).toBe(1);
   view.dispose();
+
+  // Transcript search finds the earlier turn.
+  const gw2 = new Gateway(again);
+  const hits = await gw2.searchHistory(rootId, "window seat");
+  expect(hits.map((h) => h.role)).toContain("user");
+
+  // A Home panel: the agent is asked in the background panel conversation and publishes the card.
+  const { panels } = await import("../src/app/panels.ts");
+  const p = panels.create("BTC price");
+  faux.setResponses([
+    (context: any) => {
+      const prompt = JSON.stringify(context.messages.at(-1));
+      const id = prompt.match(/Home panel (\w+)/)![1]!;
+      return fauxAssistantMessage([fauxToolCall("panel_publish", { id, title: "BTC", body: "# $97,000", cadence: "hourly" })], { stopReason: "toolUse" } as any);
+    },
+    fauxAssistantMessage([fauxText("Published.")]),
+  ]);
+  await gw2.buildPanel(p, "create");
+  const built = panels.get(p.id)!;
+  expect(built.status).toBe("live");
+  expect(built.body).toBe("# $97,000");
+  expect(built.next_refresh).toBeGreaterThan(Date.now());
   await again.harness.close(ctx);
 });

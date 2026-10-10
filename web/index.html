@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#111110" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#fcf9f7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#161615" media="(prefers-color-scheme: dark)" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="stylesheet" href="/app.css" />
@@ -16,7 +16,7 @@
 <div id="gate" hidden>
   <form id="gateForm">
     <div class="mark">T</div>
-    <h1 id="gateTitle">Tomo</h1>
+    <h1 id="gateTitle" class="serif">Tomo</h1>
     <p id="gateSub" class="muted"></p>
     <input type="password" id="pw" placeholder="密码" />
     <input type="password" id="pw2" placeholder="再输一次" hidden />
@@ -25,77 +25,55 @@
   </form>
 </div>
 
-<!-- top bar: Home at the left, chat/projects in the middle, search and profile at the right -->
-<header id="top">
-  <button class="icon" id="homeBtn" title="Home" aria-label="Home">
-    <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
-  </button>
-  <nav class="seg" id="tabs">
-    <button data-view="chat" class="on">对话</button>
-    <button data-view="projects">项目</button>
+<!-- floating top bar: context button · dock · settings, three separate pieces -->
+<header id="bar">
+  <button class="float round" id="ctxBtn" data-tip=""></button>
+  <nav class="float dock" id="dock">
+    <button data-view="home" data-tip="Home"></button>
+    <button data-view="chat" data-tip="对话"></button>
+    <button data-view="projects" data-tip="项目"></button>
   </nav>
-  <div class="right">
-    <button class="icon" id="searchBtn" title="搜索" aria-label="搜索">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    </button>
-    <button class="avatar" id="profileBtn" title="设置" aria-label="设置">我</button>
-  </div>
+  <button class="float round" id="setBtn" data-tip="设置"></button>
 </header>
 
-<!-- desktop sidebar -->
-<aside id="side">
-  <div class="brand"><span class="mark sm">T</span><span>Tomo</span></div>
-  <button class="nav" data-nav="home"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
-  <button class="nav" data-nav="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>搜索</button>
-  <button class="nav" data-nav="projects"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>项目</button>
-  <div class="sideScroll">
-    <div class="sideTitle">对话</div>
-    <div id="sideConvs"></div>
-    <div class="sideTitle">项目</div>
-    <div id="sideProjects"></div>
-  </div>
-  <button class="me" id="sideMe"><span class="avatar">我</span><span class="grow">设置</span><span class="muted small" id="sideModel"></span></button>
+<!-- project drawer (projects view) -->
+<aside id="drawer" class="float" hidden>
+  <div class="drawerHead"><span class="serif">项目</span><button class="icon" id="drawerClose" data-tip="收起"></button></div>
+  <div id="drawerList"></div>
 </aside>
 
 <main>
-  <!-- Home: glanceable panels -->
   <section class="view" id="v-home">
     <div class="page">
       <p class="eyebrow" id="today"></p>
-      <h1 class="hello" id="hello">你好</h1>
+      <h1 class="hello serif" id="hello">你好</h1>
       <div class="panels" id="panels"></div>
     </div>
   </section>
 
-  <!-- Chat -->
-  <section class="view on" id="v-chat">
-    <div class="convbar"><button class="pill" id="convPick"><span id="convName">Home</span> <span class="chev">▾</span></button></div>
+  <section class="view" id="v-chat">
+    <div class="convbar"><button class="pill" id="convPick"><span id="convName">Home</span><span class="chev"></span></button></div>
     <div id="thread"><div class="threadInner" id="log"></div></div>
     <form id="composer">
       <textarea id="t" rows="1" placeholder="给 Tomo 发消息"></textarea>
-      <button class="send" aria-label="发送"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      <button class="send" id="sendBtn" aria-label="发送"></button>
     </form>
   </section>
 
-  <!-- Projects -->
   <section class="view" id="v-projects">
-    <div class="page">
-      <h1 class="title">项目</h1>
-      <p class="muted small">每个项目有自己的简报和工作目录。在对话里说「新建一个项目」，或用 <code>/project 名字</code> 切换。</p>
-      <div id="projectList" class="list"></div>
-    </div>
+    <div class="page narrow" id="projectPage"></div>
   </section>
 </main>
 
-<!-- sheets -->
 <div id="scrim" hidden></div>
 <aside class="sheet" id="sheet" hidden>
-  <div class="sheetHead"><button class="link" id="sheetBack" style="visibility:hidden">‹ 返回</button><h2 id="sheetTitle"></h2><button class="link" id="sheetClose">完成</button></div>
+  <div class="sheetHead"><button class="icon" id="sheetBack" style="visibility:hidden" data-tip="返回"></button><h2 id="sheetTitle"></h2><button class="icon" id="sheetClose" data-tip="关闭"></button></div>
   <div class="sheetBody" id="sheetBody"></div>
 </aside>
 
 <div id="toast" hidden></div>
 
+<script src="/icons.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

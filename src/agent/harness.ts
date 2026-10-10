@@ -11,6 +11,7 @@ import { openBunSqliteStorage } from "../storage/bun-sqlite.ts";
 import { loadPlugins, Plugins } from "./evolve/plugins.ts";
 import { Delegate } from "./extensions/delegate.ts";
 import { Memory } from "./extensions/memory.ts";
+import { Panels } from "./extensions/panels.ts";
 import { Persona } from "./extensions/persona.ts";
 import { Projects } from "./extensions/projects.ts";
 import { Scheduler } from "./extensions/scheduler.ts";
@@ -24,7 +25,7 @@ export async function openAgent(opts: { models?: MutableModels } = {}) {
 
   const registry = createRegistry();
   // Install order is prompt order: identity first, tools after.
-  for (const ext of [Persona, Memory, Projects, Skills, Scheduler, Delegate, Plugins, CodingTools]) registry.install(ext);
+  for (const ext of [Persona, Memory, Projects, Skills, Scheduler, Panels, Delegate, Plugins, CodingTools]) registry.install(ext);
   await loadPlugins(registry);
 
   const defaultCwd = join(config.dataDir, "workspace");

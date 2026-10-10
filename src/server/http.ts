@@ -23,6 +23,8 @@
  *   POST /api/conversations/:id/messages {text}  submit as the owner (goes through the gateway)
  *   GET  /api/projects | /api/projects/:id | /api/memories?q= | /api/schedules | /api/skills
  *   DELETE /api/memories/:id | /api/schedules/:id
+ *   GET/POST /api/panels · POST /api/panels/:id/refresh · PUT /api/panels/:id {instruction} · DELETE /api/panels/:id
+ *   GET  /api/history?q=&conversation=   transcript search
  * WebSocket
  *   /ws?conversation=<id>&token=<t>      server -> client: Pi Durable agent events (first a snapshot)
  *                                        client -> server: {"type":"input","text":"..."} | {"type":"abort"}
@@ -31,6 +33,7 @@ import { watchEvents } from "@earendil-works/pi-durable";
 import { Hono } from "hono";
 import { createBunWebSocket, serveStatic } from "hono/bun";
 import { memory } from "../app/memory.ts";
+import { panels } from "../app/panels.ts";
 import { projects } from "../app/projects.ts";
 import { schedules } from "../app/schedules.ts";
 import { skillIndex } from "../agent/extensions/skills.ts";
@@ -231,6 +234,43 @@ export function startHttp(gateway: Gateway) {
     const p = projects.get(c.req.param("id"));
     return p ? c.json(p) : c.json({ error: "not found" }, 404);
   });
+  // Home panels
+  app.get("/api/panels", (c) => c.json(panels.list()));
+  app.post("/api/panels", async (c) => {
+    const { request } = await c.req.json<{ request: string }>();
+    if (!request?.trim()) return c.json({ error: "Say what the panel should show" }, 400);
+    const p = panels.create(request.trim());
+    void gateway.buildPanel(p, "create").catch((e) => panels.setStatus(p.id, "error", String(e)));
+    return c.json(p);
+  });
+  app.post("/api/panels/:id/refresh", (c) => {
+    const p = panels.get(c.req.param("id"));
+    if (!p) return c.json({ error: "not found" }, 404);
+    panels.setStatus(p.id, "building");
+    void gateway.buildPanel(p, "refresh").catch((e) => panels.setStatus(p.id, "error", String(e)));
+    return c.json({ ok: true });
+  });
+  app.put("/api/panels/:id", async (c) => {
+    const p = panels.get(c.req.param("id"));
+    if (!p) return c.json({ error: "not found" }, 404);
+    const { instruction } = await c.req.json<{ instruction: string }>();
+    void gateway.buildPanel(p, "edit", instruction).catch((e) => panels.setStatus(p.id, "error", String(e)));
+    return c.json({ ok: true });
+  });
+  app.delete("/api/panels/:id", (c) => {
+    panels.remove(c.req.param("id"));
+    return c.json({ ok: true });
+  });
+
+  // Full-text search over a conversation's transcript (default: Home)
+  app.get("/api/history", async (c) => {
+    const q = c.req.query("q")?.trim();
+    if (!q) return c.json([]);
+    const conv = c.req.query("conversation");
+    const id = !conv || conv === "home" ? String(gateway.agent.root.id) : conv;
+    return c.json(await gateway.searchHistory(id, q));
+  });
+
   app.get("/api/schedules", (c) => c.json(schedules.list()));
   app.delete("/api/schedules/:id", (c) => {
     schedules.cancel(c.req.param("id"));
