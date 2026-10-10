@@ -52,7 +52,7 @@ export class Gateway {
   /** Point every user-facing conversation at the default model chosen in settings. */
   async applyDefaultModel() {
     const model = runtime.model();
-    const ids = [String(this.agent.root.id), ...bindings.list().map((b) => b.conversation_id)];
+    const ids = [String(this.agent.root.id), ...bindings.list().map((b) => b.conversation_id), ...projects.list(true).flatMap((p) => (p.conversation_id ? [p.conversation_id] : []))];
     for (const id of new Set(ids)) {
       const conv = await this.harness.conversation(cid(id), ctx);
       await conv?.configure({ model }, ctx).catch((e: unknown) => console.error("[model]", id, e));
@@ -135,6 +135,8 @@ export class Gateway {
       }
     }
 
+    const proj = projects.byConversation(convId);
+    if (proj) projects.touch(proj.id);
     const content = m.isDirect && role === "owner" ? m.text : `[${m.userName} on ${m.platform}] ${m.text}`;
     const conv = (await this.harness.conversation(cid(convId), ctx))!;
     const requestId = `${m.platform}:${m.chatId}:${m.messageId}`;
@@ -208,6 +210,20 @@ export class Gateway {
     }
   }
 
+  /** A project's own conversation, created fresh (never forked) the first time it is opened. */
+  async projectConversation(projectId: string): Promise<string> {
+    const p = projects.get(projectId);
+    if (!p) throw new Error(`no project ${projectId}`);
+    if (p.conversation_id && (await this.harness.conversation(cid(p.conversation_id), ctx))) return p.conversation_id;
+    const c = await this.harness.createConversation({ ownership: { kind: "ownerless" }, agent: { model: runtime.model() } }, ctx);
+    await c.commit(async (tx) => {
+      Object.assign(await tx.doc(MetaDoc, c.id), { kind: "project", projectId: p.id, title: p.name });
+      await configure(tx, c.id, { cwd: projects.dir(p.id) });
+    }, ctx);
+    projects.setConversation(p.id, String(c.id));
+    return String(c.id);
+  }
+
   /** Text search over a conversation's whole transcript, newest first. */
   async searchHistory(convId: string, needle: string, limit = 30) {
     const conv = await this.harness.conversation(cid(convId), ctx);
@@ -253,7 +269,7 @@ export class Gateway {
     const conv = (await this.harness.conversation(cid(convId), ctx))!;
     switch (cmd) {
       case "/help":
-        return "/new · /stop · /status · /model <provider>/<id> · /project <name|none> · /plugins · /approve <name> · /reject <name> · /whoami";
+        return "/new · /stop · /status · /model <provider>/<id> · /project · /plugins · /approve <name> · /reject <name> · /whoami";
       case "/new":
         await conv.reset(undefined, ctx);
         return "Fresh context. Memory and history are kept.";
@@ -266,18 +282,8 @@ export class Gateway {
         await conv.configure({ model: { provider, modelId: id.join("/") } }, ctx);
         return `Model set to ${provider}/${id.join("/")} for this conversation.`;
       }
-      case "/project": {
-        if (!arg) return projects.list().map((p) => `- ${p.name} (${p.id})`).join("\n") || "No projects.";
-        const p = arg === "none" ? undefined : projects.find(arg);
-        if (arg !== "none" && !p) return `No project "${arg}".`;
-        await conv.commit(async (tx) => {
-          const meta = await tx.doc(MetaDoc, conv.id);
-          if (p) meta.projectId = p.id;
-          else delete meta.projectId;
-          await configure(tx, conv.id, { cwd: p ? projects.dir(p.id) : null });
-        }, ctx);
-        return p ? `Now in project ${p.name}.` : "Left the project.";
-      }
+      case "/project":
+        return (projects.list().map((p) => `- ${p.name}`).join("\n") || "No projects.") + "\n\nEach project is its own thread: open it under Projects on the web.";
       case "/status": {
         const agent = await conv.agent(ctx);
         const meta = await this.harness.snapshot(MetaDoc, conv.id, ctx);

@@ -1,3 +1,8 @@
+/**
+ * Long-term memory. Spaces are isolated: "global" belongs to the owner's chats, and each
+ * project id is its own space. A project never reads chat memory and chat never reads a
+ * project's, so a project starts from zero and its details stay inside it.
+ */
 import { db, now } from "./db.ts";
 
 export type MemoryKind = "profile" | "preference" | "person" | "place" | "fact" | "decision" | "episode";
@@ -39,7 +44,7 @@ export const memory = {
 
   search(query: string, opts: { scope?: string; limit?: number } = {}): Memory[] {
     const limit = opts.limit ?? 12;
-    const scopes = opts.scope && opts.scope !== "global" ? ["global", opts.scope] : ["global"];
+    const scopes = [opts.scope ?? "global"];
     const ph = scopes.map(() => "?").join(",");
     const q = query.trim();
     if (q.length >= 3) {
@@ -68,7 +73,7 @@ export const memory = {
   },
 
   recent(opts: { scope?: string; limit?: number; kinds?: MemoryKind[] } = {}): Memory[] {
-    const scopes = opts.scope && opts.scope !== "global" ? ["global", opts.scope] : ["global"];
+    const scopes = [opts.scope ?? "global"];
     const kinds = opts.kinds ?? ["profile", "preference", "person", "place", "fact", "decision", "episode"];
     return db
       .query(

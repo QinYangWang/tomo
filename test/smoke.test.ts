@@ -81,5 +81,19 @@ test("turn, memory, delivery, restart", async () => {
   expect(built.status).toBe("live");
   expect(built.body).toBe("# $97,000");
   expect(built.next_refresh).toBeGreaterThan(Date.now());
+
+  // Projects are isolated: their own fresh conversation and their own memory space.
+  const { projects } = await import("../src/app/projects.ts");
+  const proj = projects.create("Tokyo trip");
+  const projConv = await gw2.projectConversation(proj.id);
+  expect(projConv).not.toBe(rootId);
+  expect(await gw2.projectConversation(proj.id)).toBe(projConv);
+  const pv = await (await again.harness.conversation(Number(projConv) as any, ctx))!.viewState(ctx);
+  expect(pv.value.entries.filter((e) => e.kind === "pi.user").length).toBe(0);
+  pv.dispose();
+  memory.add({ kind: "fact", subject: "Tokyo trip", content: "Hotel near Shibuya station", scope: proj.id });
+  expect(memory.search("Shibuya").length).toBe(0);
+  expect(memory.search("Shibuya", { scope: proj.id }).length).toBe(1);
+  expect(memory.search("window", { scope: proj.id }).length).toBe(0);
   await again.harness.close(ctx);
 });

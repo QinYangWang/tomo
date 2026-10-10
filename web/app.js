@@ -45,7 +45,7 @@ $("setBtn").innerHTML = ic("settings");
 $("sendBtn").innerHTML = ic("send");
 $("sheetBack").innerHTML = ic("back");
 $("sheetClose").innerHTML = ic("close");
-$("drawerClose").innerHTML = ic("sidebar", 18);
+$("projAdd").innerHTML = ic("add", 18);
 document.querySelector(".chev").innerHTML = ic("right", 14);
 // ---------- tiny markdown (assistant messages) ----------
 function md(src) {
@@ -123,17 +123,21 @@ function go(v) {
   $("ctxBtn").innerHTML = ic(CTX[v].icon);
   $("ctxBtn").dataset.tip = CTX[v].tip;
   $("ctxBtn").setAttribute("aria-label", CTX[v].tip);
-  if (v !== "projects") toggleDrawer(false);
+  if (v !== "projects") toggleDrawer(false, false);
   if (v === "home") renderHome();
   if (v === "projects") renderProjects();
-  if (v === "chat") setTimeout(() => ($("thread").scrollTop = 1e9));
+  if (v === "chat") {
+    $("v-chat").append($("chatPane"));
+    if (current !== chatConv) connect(chatConv);
+    setTimeout(() => ($("thread").scrollTop = 1e9));
+  }
 }
 for (const b of $("dock").querySelectorAll("button")) b.onclick = () => go(b.dataset.view);
 $("ctxBtn").onclick = () => CTX[view].run();
 $("setBtn").onclick = () => openSettings();
 
 // ---------- chat ----------
-let current = "home", ws, live = null, work = null, typing = null, convs = [];
+let current = "", chatConv = "home", ws, live = null, work = null, typing = null, convs = [];
 const textOf = (msgs) => (msgs ?? []).flatMap((m) => (typeof m.content === "string" ? [m.content] : (m.content ?? []).filter((c) => c.type === "text").map((c) => c.text))).join("");
 const TOOL_NAMES = {
   remember: "记下一件事", recall: "翻记忆", forget: "删除记忆", update_memory: "更新记忆",
@@ -215,12 +219,13 @@ function convLabel(id) {
   const c = convs.find((x) => x.id === id || (id === "home" && x.key === "home"));
   return c && c.key !== "home" ? c.key : "Home";
 }
-function connect(id) {
+function connect(id, kind = "chat") {
   ws?.close();
   $("log").innerHTML = "";
   live = work = typing = null;
   current = id;
-  $("convName").textContent = convLabel(id);
+  if (kind === "chat") $("convName").textContent = convLabel(id);
+  $("t").placeholder = kind === "project" ? "在这个项目里给 Tomo 发消息" : "给 Tomo 发消息";
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const sock = (ws = new WebSocket(`${proto}://${location.host}/ws?conversation=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`));
   sock.onmessage = (ev) => {
@@ -230,7 +235,9 @@ function connect(id) {
         work = typing = null;
         e.entries.forEach((x) => renderEntry(x, true));
         finishWork();
-        if (!e.entries.length) $("log").innerHTML = `<div class="empty">这是你和 Tomo 的 Home 对话。<br/>在 Telegram、Discord、Slack 私聊它，也会出现在这里。</div>`;
+        if (!e.entries.length) $("log").innerHTML = kind === "project"
+          ? `<div class="projStart"><b>新项目，从零开始</b>这里是这个项目自己的对话和记忆，和日常聊天互不相通。<br/>先告诉 Tomo 这个项目要做什么。</div>`
+          : `<div class="empty">这是你和 Tomo 的 Home 对话。<br/>在 Telegram、Discord、Slack 私聊它，也会出现在这里。</div>`;
       } else if (e.type === "run_start") setTyping(true);
       else if (e.type === "message_start" && e.message?.role === "assistant") live = null;
       else if (e.type === "message_update") {
@@ -256,7 +263,7 @@ function connect(id) {
   };
   sock.onclose = (ev) => {
     if (ev.code === 4401) return gate();
-    setTimeout(() => ws === sock && connect(id), 2000);
+    setTimeout(() => ws === sock && connect(id, kind), 2000);
   };
 }
 $("composer").onsubmit = (ev) => {
@@ -276,13 +283,13 @@ $("convPick").onclick = async () => {
       const id = c.key === "home" ? "home" : c.id;
       return `<button class="item" data-id="${esc(id)}">${ic(c.key === "home" ? "home" : "chat", 18)}<span class="grow">${c.key === "home" ? "Home <span class='muted small'>· 所有平台的私聊</span>" : esc(c.key)}</span>${id === current ? ic("tick", 18) : ""}</button>`;
     }).join("")}</div><p class="note">群聊和频道各有自己的对话，线程从频道对话分叉。</p>`;
-    body.querySelectorAll("[data-id]").forEach((b) => (b.onclick = () => { closeSheet(); connect(b.dataset.id); go("chat"); }));
+    body.querySelectorAll("[data-id]").forEach((b) => (b.onclick = () => { closeSheet(); chatConv = b.dataset.id; connect(chatConv); go("chat"); }));
   }, { small: true });
 };
 
 // chat context button: search this conversation's whole history
 function searchHistory() {
-  sheet(`搜索 · ${convLabel(current)}`, (body) => {
+  sheet(`搜索 · ${view === "projects" && openProject ? openProject.name : convLabel(current)}`, (body) => {
     body.innerHTML = `<input class="searchBox" id="hq" placeholder="搜索聊天记录" /><div id="hres"></div>`;
     let t;
     $("hq").oninput = () => { clearTimeout(t); t = setTimeout(run, 250); };
@@ -406,48 +413,84 @@ function newPanel() {
   }, { small: true });
 }
 
-// ---------- Projects ----------
-let projectList = [], currentProject = localStorage.project || "";
-function toggleDrawer(force) {
+// ---------- Projects: each one is its own thread with its own memory ----------
+let projectList = [], currentProject = localStorage.project || "", openProject = null;
+function toggleDrawer(force, remember = true) {
   const open = force ?? $("drawer").hidden;
   $("drawer").hidden = !open;
   document.body.classList.toggle("drawerOpen", open);
+  if (remember) localStorage.drawer = open ? "1" : "";
   if (open) drawDrawer();
 }
-$("drawerClose").onclick = () => toggleDrawer(false);
+$("projAdd").onclick = () => newProject();
 function drawDrawer() {
-  $("drawerList").innerHTML = projectList.length
-    ? projectList.map((p) => `<button class="dItem ${p.id === currentProject ? "on" : ""}" data-id="${esc(p.id)}">${ic("projects", 18)}<span class="grow">${esc(p.name)}</span><span class="when">${ago(p.updated_at)}</span></button>`).join("")
-    : `<div class="empty">还没有项目</div>`;
+  const active = projectList.filter((p) => p.status === "active"), archived = projectList.filter((p) => p.status !== "active");
+  const row = (p) => `<button class="dItem ${p.id === currentProject ? "on" : ""}" data-id="${esc(p.id)}">${ic("projects", 18)}<span class="grow">${esc(p.name)}</span><span class="when">${ago(p.updated_at)}</span></button>`;
+  $("drawerList").innerHTML = (active.length ? active.map(row).join("") : `<div class="empty">还没有项目</div>`) + (archived.length ? `<div class="gtitle" style="margin:14px 10px 4px">已归档</div>${archived.map(row).join("")}` : "");
   $("drawerList").querySelectorAll("[data-id]").forEach((b) => (b.onclick = () => {
-    currentProject = localStorage.project = b.dataset.id;
-    drawDrawer();
-    drawProject();
-    if (!desk.matches || innerWidth < 1100) toggleDrawer(false);
+    selectProject(b.dataset.id);
+    if (innerWidth < 1100) toggleDrawer(false, false);
   }));
+}
+function newProject() {
+  sheet("新建项目", (body) => {
+    body.innerHTML = `<p class="muted" style="margin:0 2px 12px">每个项目是独立的对话，有自己的记忆和工作目录，从零开始。日常聊天只知道有这个项目，不知道里面的内容。</p>
+      <input class="searchBox" id="pn" placeholder="项目名称，比如：东京旅行 12 月" />
+      <div class="btns" style="margin-top:14px;justify-content:flex-end"><span class="msg" id="pnMsg"></span><button class="primary" id="pnGo">创建</button></div>`;
+    $("pn").focus();
+    $("pn").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) $("pnGo").click(); };
+    $("pnGo").onclick = async () => {
+      const name = $("pn").value.trim();
+      if (!name) return;
+      const p = await api("/api/projects", { method: "POST", body: { name } });
+      if (p.error) return flash($("pnMsg"), p.error);
+      closeSheet();
+      currentProject = localStorage.project = p.id;
+      if (view !== "projects") go("projects"); else renderProjects();
+      setTimeout(() => $("t").focus(), 300);
+    };
+  }, { small: true });
 }
 async function renderProjects() {
   projectList = await api("/api/projects");
-  if (!projectList.some((p) => p.id === currentProject)) currentProject = projectList[0]?.id ?? "";
-  if (!$("drawer").hidden) drawDrawer();
-  drawProject();
-}
-async function drawProject() {
+  if (!projectList.some((p) => p.id === currentProject)) currentProject = projectList.find((p) => p.status === "active")?.id ?? projectList[0]?.id ?? "";
+  if (desk.matches && innerWidth >= 1100 && localStorage.drawer !== "") toggleDrawer(true);
+  else if (!$("drawer").hidden) drawDrawer();
   if (!currentProject) {
-    $("projectPage").innerHTML = `<div class="projHead"><p class="eyebrow">项目</p><h1 class="serif">还没有项目</h1></div><p class="muted">在对话里说「帮我开个项目：搬家」，Tomo 会建好项目、写简报，之后在项目里干活都会记在这里。</p><div class="btns"><button class="primary" id="toChat">去对话</button></div>`;
-    $("toChat").onclick = () => go("chat");
+    openProject = null;
+    $("projBar").innerHTML = "";
+    $("v-chat").append($("chatPane"));
+    $("projSlot").innerHTML = `<div class="projEmpty"><p class="eyebrow">项目</p><h2 class="serif">还没有项目</h2><p class="muted">项目适合要花好几天的事：一次旅行、一次搬家、一个产品发布。每个项目都是独立的对话，有自己的记忆。</p><div class="btns" style="justify-content:center"><button class="primary" id="np0">新建项目</button></div></div>`;
+    $("np0").onclick = newProject;
     return;
   }
-  const p = await api(`/api/projects/${encodeURIComponent(currentProject)}`);
-  $("projectPage").innerHTML = `<div class="projHead"><p class="eyebrow">${p.status === "active" ? "进行中" : "已归档"} · 更新于 ${ago(p.updated_at)}</p><h1 class="serif">${esc(p.name)}</h1></div>
-    <div class="btns" style="margin-top:12px"><button class="primary" id="useProj">在 Home 对话里切到这个项目</button><button class="ghost" id="allProj">全部项目</button></div>
-    <div class="doc">${p.brief ? md(p.brief) : `<p class="muted">还没有简报。Tomo 会在工作中自己维护它。</p>`}</div>`;
-  $("allProj").onclick = () => toggleDrawer(true);
-  $("useProj").onclick = () => {
-    connect("home");
-    go("chat");
-    setTimeout(() => ws?.readyState === 1 && ws.send(JSON.stringify({ type: "input", text: `/project ${p.id}` })), 600);
-  };
+  selectProject(currentProject);
+}
+async function selectProject(id) {
+  currentProject = localStorage.project = id;
+  if (!$("drawer").hidden) drawDrawer();
+  const p = (openProject = await api(`/api/projects/${encodeURIComponent(id)}`));
+  $("projBar").innerHTML = `<div style="flex:1;min-width:0"><p class="eyebrow">${p.status === "active" ? "项目" : "已归档项目"} · 独立记忆</p><h1 class="serif">${esc(p.name)}</h1></div>
+    <button class="icon" id="pBrief" data-tip="简报与记忆">${ic("info", 20)}</button>
+    <button class="icon" id="pMore" data-tip="更多">${ic("more", 20)}</button>`;
+  $("projSlot").querySelector(".projEmpty")?.remove();
+  $("projSlot").append($("chatPane"));
+  if (current !== p.conversation_id) connect(p.conversation_id, "project");
+  $("pBrief").onclick = () => projectInfo(p);
+  $("pMore").onclick = () => sheet(p.name, (body) => {
+    body.innerHTML = `<div class="group"><button class="item" id="pArch">${ic(p.status === "active" ? "check" : "refresh", 20)}<span class="grow">${p.status === "active" ? "归档这个项目" : "恢复为进行中"}</span></button></div>`;
+    $("pArch").onclick = async () => {
+      await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: "PATCH", body: { status: p.status === "active" ? "archived" : "active" } });
+      closeSheet();
+    };
+  }, { small: true });
+}
+async function projectInfo(p) {
+  const mem = await api(`/api/memories?scope=${encodeURIComponent(p.id)}`);
+  sheet(p.name, (body) => {
+    body.innerHTML = `<div class="gtitle">简报</div><div class="doc" style="margin-top:10px">${p.brief ? md(p.brief) : `<p class="muted">还没有简报。Tomo 弄清这个项目的目标后会自己写，并随工作更新。</p>`}</div>
+      <div class="gtitle">项目记忆 · ${mem.length} 条</div>${mem.length ? `<div class="group">${mem.map((m) => `<div class="item"><span class="grow">${esc(m.content)}<div class="muted small">${esc(m.subject)} · ${ago(m.updated_at)}</div></span></div>`).join("")}</div>` : `<p class="note" style="margin-top:14px">这个项目还没有记忆。它和日常聊天的记忆是分开的。</p>`}`;
+  }, { small: true });
 }
 
 // ---------- sheet (modal on desktop, bottom sheet on phones) ----------
@@ -702,7 +745,6 @@ function renderAbout(body) {
 async function boot(firstRun) {
   $("gate").hidden = true;
   convs = await api("/api/conversations");
-  connect("home");
   const S = await api("/api/settings");
   const hasKey = S.providers.some((p) => p.key.set || p.fromEnv);
   go(firstRun || !hasKey ? "home" : localStorage.view && CTX[localStorage.view] ? localStorage.view : "home");

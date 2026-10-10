@@ -16,17 +16,16 @@ async function scopeOf(api: { snapshot: any; conversationId: any }, context: any
 const remember = defineTool({
   name: "remember",
   description:
-    "Save one durable statement about the user's world to long-term memory. Write it as a self-contained sentence with its conditions (place, people, occasion). Use scope 'project' for facts that only matter inside the current project.",
+    "Save one durable statement to long-term memory. Write it as a self-contained sentence with its conditions (place, people, occasion). Inside a project it goes to that project's own memory.",
   parameters: Type.Object({
     kind: Kind,
     subject: Type.String({ description: "Who or what it is about: 'user', a person's full name, a place, a project." }),
     content: Type.String(),
     confidence: Type.Optional(Type.Union([Type.Literal("stated"), Type.Literal("inferred")])),
-    scope: Type.Optional(Type.Union([Type.Literal("global"), Type.Literal("project")])),
   }),
   replay: "safe", // add() dedupes identical rows
   execute: async (args, api, context) => {
-    const project = args.scope === "project" ? await scopeOf(api, context) : undefined;
+    const project = await scopeOf(api, context);
     const id = memory.add({
       kind: args.kind as MemoryKind,
       subject: args.subject,
@@ -79,6 +78,10 @@ export const Memory = defineExtension({
     section("memory", async (input, context) => {
       const meta = await input.read.snapshot(MetaDoc, input.conversationId, context);
       const rows = memory.core(meta?.projectId);
+      if (meta?.projectId) {
+        if (!rows.length) return "This project's memory is empty. It is separate from the owner's chats: learn what this project needs as you go.";
+        return `This project's memory (separate from the owner's chats):\n${formatMemories(rows)}\nSearch with recall.`;
+      }
       if (!rows.length) return "Nothing saved about the user yet. Learn as you go.";
       return `What you know about the user (use quietly; do not recite it back):\n${formatMemories(rows)}\nSearch with recall for people, places, decisions and episodes.`;
     }),

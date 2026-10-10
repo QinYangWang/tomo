@@ -77,8 +77,15 @@ export async function reflect(harness: Harness, conversationId: string, turn: nu
   const r = await reflector(harness);
   await r.reset(undefined, ctx); // each reflection starts clean; old ones stay in storage
   await r.configure({ model: runtime.smallModel() }, ctx); // follow the model chosen in settings
+  // The reflector writes memory into the same space as the conversation it reads: a project's
+  // facts stay in that project, chat facts stay global.
+  await r.commit(async (tx) => {
+    const m = await tx.doc(MetaDoc, r.id);
+    if (project) m.projectId = project.id;
+    else delete m.projectId;
+  }, ctx);
   const input = [
-    project ? `Active project: ${project.name} (${project.id}). Current brief:\n${project.brief}` : "No active project.",
+    project ? `This is the project "${project.name}" (${project.id}); memories you save stay in this project. Current brief:\n${project.brief}` : "This is the owner's own chat; memories you save are global.",
     `Existing memories:\n${known || "(none)"}`,
     `Conversation slice:\n${slice}`,
   ].join("\n\n");

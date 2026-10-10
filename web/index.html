@@ -38,7 +38,7 @@
 
 <!-- project drawer (projects view) -->
 <aside id="drawer" class="float" hidden>
-  <div class="drawerHead"><span class="serif">项目</span><button class="icon" id="drawerClose" data-tip="收起"></button></div>
+  <div class="drawerHead"><span class="serif">项目</span><button class="icon" id="projAdd" data-tip="新建项目"></button></div>
   <div id="drawerList"></div>
 </aside>
 
@@ -53,15 +53,19 @@
 
   <section class="view" id="v-chat">
     <div class="convbar"><button class="pill" id="convPick"><span id="convName">Home</span><span class="chev"></span></button></div>
-    <div id="thread"><div class="threadInner" id="log"></div></div>
-    <form id="composer">
-      <textarea id="t" rows="1" placeholder="给 Tomo 发消息"></textarea>
-      <button class="send" id="sendBtn" aria-label="发送"></button>
-    </form>
+    <!-- one chat pane, moved between the chat view and the open project's thread -->
+    <div id="chatPane">
+      <div id="thread"><div class="threadInner" id="log"></div></div>
+      <form id="composer">
+        <textarea id="t" rows="1" placeholder="给 Tomo 发消息"></textarea>
+        <button class="send" id="sendBtn" aria-label="发送"></button>
+      </form>
+    </div>
   </section>
 
   <section class="view" id="v-projects">
-    <div class="page narrow" id="projectPage"></div>
+    <div class="projBar" id="projBar"></div>
+    <div id="projSlot"></div>
   </section>
 </main>
 

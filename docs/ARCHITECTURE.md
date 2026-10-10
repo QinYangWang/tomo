@@ -8,7 +8,7 @@
 |---|---|
 | 多消息平台 | 每个平台一个 `ChannelAdapter`（Telegram / Discord / Slack），统一进 `Gateway` |
 | 多平台客户端 | HTTP + WebSocket API，自带 Web/PWA 客户端；iOS/Android 原生客户端用同一协议 |
-| 项目管理 | `projects` 扩展：项目有 brief（目标、文件、规则、待办）和独立工作目录 |
+| 项目管理 | `projects` 扩展：每个项目是独立会话，有自己的记忆空间、brief 和工作目录 |
 | 持久记忆 | `memory` 扩展：SQLite + FTS5（trigram，中日英都能搜），有置信度、作用域 |
 | 持续进化 | ① 反思循环自动提炼记忆和技能 ② 技能自写自改 ③ 插件自提案、主人批准后热加载 |
 | 耐久运行 | Pi Durable：每步都是带 checkpoint 的 task，进程挂了重启后接着跑 |
@@ -69,10 +69,13 @@ confidence: stated(用户亲口说) | inferred(代理推断)
 
 ## 5. 项目
 
-- `project_create` 建项目 → 会话的 `app.meta.projectId` 指向它，`cwd` 切到 `data/projects/<id>/`，文件工具和 bash 都在这里跑。
-- 项目 **brief** 每次请求注入：目标与范围、重要文件、"当 X 时做 Y" 的规则、进行中的事。代理被要求在变化时主动更新。
-- 项目作用域的记忆只在该项目里可见。
-- Slack thread fork 时 `app.meta` 用 `fork: "current"`，继承频道的项目。
+每个项目是一个**独立的线程和 agent 上下文**：
+
+- 新建项目（网页「项目」侧栏的 + 按钮，或在聊天里让 Tomo `project_create`）会创建一个**全新的会话**，不从任何对话 fork，所以每个项目都从零开始。会话的 `app.meta` 记着 `kind: "project"` 和 `projectId`，`cwd` 是 `data/projects/<id>/`。
+- **记忆隔离**：记忆按空间存，`global` 属于日常聊天，每个项目 id 是自己的空间。项目里 `remember`、`recall` 和反思只碰本项目的空间；聊天只碰 `global`。两边互相看不到对方的记忆。
+- 聊天只知道**有哪些项目**（名字和状态），不知道简报、记忆或对话内容。问到项目细节时，Tomo 会让用户去对应项目里聊。
+- 项目 **brief** 只注入该项目自己的会话，由它主动维护（`project_update_brief`）。
+- `/project` 命令只列项目，不再在当前对话里切换项目。
 
 ## 6. 持续进化
 
@@ -106,7 +109,7 @@ WS   /ws?conversation=home&token=…
 
 ## 9. 主人命令
 
-`/new` 新上下文 · `/stop` 中止 · `/status` 模型/项目/花费 · `/model anthropic/claude-sonnet-5-5` · `/project <名|none>` · `/plugins [名]` · `/approve 名` · `/reject 名` · `/whoami`
+`/new` 新上下文 · `/stop` 中止 · `/status` 模型/项目/花费 · `/model anthropic/claude-sonnet-5-5` · `/project`（列出项目） · `/plugins [名]` · `/approve 名` · `/reject 名` · `/whoami`
 
 ## 10. 安全
 
