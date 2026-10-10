@@ -1,6 +1,7 @@
 import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
+import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { createRegistry, Harness } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
@@ -22,6 +23,7 @@ export async function openAgent(opts: { models?: MutableModels } = {}) {
   if (!opts.models) {
     if (process.env.ANTHROPIC_API_KEY) models.setProvider(anthropicProvider());
     if (process.env.OPENAI_API_KEY) models.setProvider(openaiProvider());
+    if (process.env.GEMINI_API_KEY) models.setProvider(googleProvider());
   }
 
   const registry = createRegistry();
