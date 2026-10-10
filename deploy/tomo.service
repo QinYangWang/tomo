@@ -1,0 +1,17 @@
+# systemd unit for running without Docker:  sudo cp deploy/tomo.service /etc/systemd/system/ && sudo systemctl enable --now tomo
+[Unit]
+Description=Tomo personal agent
+After=network-online.target
+
+[Service]
+User=tomo
+WorkingDirectory=/opt/tomo
+EnvironmentFile=/opt/tomo/.env
+ExecStart=/home/tomo/.bun/bin/bun run src/main.ts
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

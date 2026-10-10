@@ -1,0 +1,26 @@
+{
+  "name": "tomo",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "dev": "bun --watch run src/main.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "^1.1.0",
+    "@earendil-works/pi-ai": "^1.1.0",
+    "@earendil-works/pi-durable": "^1.1.0",
+    "@slack/bolt": "^5.1.0",
+    "croner": "^10.0.1",
+    "discord.js": "^14.27.0",
+    "grammy": "^1.46.0",
+    "hono": "^4.13.13"
+  },
+  "version": "0.1.0"
+}

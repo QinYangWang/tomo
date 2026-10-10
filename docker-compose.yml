@@ -1,0 +1,9 @@
+services:
+  tomo:
+    build: .
+    restart: unless-stopped      # a crash restarts the process; Pi Durable resumes unfinished work
+    env_file: .env
+    volumes:
+      - ./data:/data             # harness.sqlite, app.sqlite, skills, plugins, project workspaces
+    ports:
+      - "127.0.0.1:8787:8787"    # put Caddy/nginx in front for HTTPS
