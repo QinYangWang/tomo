@@ -265,4 +265,16 @@ button.item:hover, a.item:hover { background: var(--linen); }
 .pop button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; padding: 9px 10px; border-radius: 9px; cursor: pointer; text-align: left; }
 .pop button:hover { background: var(--linen); }
 .pop .danger { color: var(--err); }
-.pop .danger.armed { background: color-mix(in srgb, var(--err) 12%, transparent); font-weight: 600; }
+
+/* alert dialog */
+.alertWrap { position: fixed; inset: 0; z-index: 60; background: rgba(3, 3, 2, .32); display: grid; place-items: center; padding: 20px; animation: fade .12s ease-out; }
+.alertDlg { width: min(400px, 100%); background: var(--surface); border-radius: 20px; padding: 22px 22px 18px; box-shadow: 0 24px 70px rgba(3, 3, 2, .3); animation: pop .14s ease-out; }
+.alertDlg h3 { margin: 0 0 8px; font-size: 20px; }
+.alertDlg p { margin: 0 0 20px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.alertBtns { display: flex; justify-content: flex-end; gap: 8px; }
+.alertBtns button { min-width: 84px; }
+.alertBtns .ghost { background: var(--linen); color: var(--ink); border: 0; border-radius: 999px; padding: 10px 16px; font: inherit; font-size: 14px; cursor: pointer; }
+.alertBtns .primary.danger { background: var(--err); color: #fff; }
+@keyframes fade { from { opacity: 0 } }
+.projStart { padding-top: 22vh; }
+.projStart b { font-size: 28px; margin: 0; }

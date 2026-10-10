@@ -237,7 +237,7 @@ function connect(id, kind = "chat") {
         e.entries.forEach((x) => renderEntry(x, true));
         finishWork();
         if (!e.entries.length) $("log").innerHTML = kind === "project"
-          ? `<div class="projStart"><b>新项目，从零开始</b>这里是这个项目自己的对话和记忆，和日常聊天互不相通。<br/>先告诉 Tomo 这个项目要做什么。</div>`
+          ? `<div class="projStart"><b>我们要做些什么？</b></div>`
           : `<div class="empty">这是你和 Tomo 的 Home 对话。<br/>在 Telegram、Discord、Slack 私聊它，也会出现在这里。</div>`;
       } else if (e.type === "run_start") setTyping(true);
       else if (e.type === "message_start" && e.message?.role === "assistant") live = null;
@@ -472,14 +472,38 @@ function projectMenu(id, anchor) {
       return renderProjects();
     }
     if (a === "delete") {
-      const b = e.target.closest("button");
-      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.querySelector("span").textContent = "确认删除？对话和记忆都会删掉"; return; }
       closePop();
+      const ok = await alertDialog({
+        title: `删除「${pname(p)}」？`,
+        body: "这个项目的对话、记忆和文件都会被删除，无法恢复。",
+        confirm: "删除",
+        danger: true,
+      });
+      if (!ok) return;
       await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
       if (currentProject === p.id) currentProject = localStorage.project = "";
       return renderProjects();
     }
   };
+}
+// Alert dialog: a blocking confirm for destructive actions. Resolves true on confirm.
+function alertDialog({ title, body, confirm = "确定", cancel = "取消", danger = false }) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement("div");
+    wrap.className = "alertWrap";
+    wrap.innerHTML = `<div class="alertDlg" role="alertdialog" aria-modal="true" aria-labelledby="adT" aria-describedby="adB">
+      <h3 id="adT" class="serif">${esc(title)}</h3><p id="adB">${esc(body)}</p>
+      <div class="alertBtns"><button class="ghost" data-r="0">${esc(cancel)}</button><button class="primary ${danger ? "danger" : ""}" data-r="1">${esc(confirm)}</button></div></div>`;
+    document.body.append(wrap);
+    const close = (v) => { wrap.remove(); document.removeEventListener("keydown", key); resolve(v); };
+    const key = (e) => { if (e.key === "Escape") close(false); };
+    document.addEventListener("keydown", key);
+    wrap.onclick = (e) => {
+      const b = e.target.closest("[data-r]");
+      if (b) close(b.dataset.r === "1");
+    };
+    wrap.querySelector('[data-r="0"]').focus();
+  });
 }
 function closePop() { document.querySelectorAll(".pop").forEach((x) => x.remove()); }
 function renameInline(p) {
@@ -533,7 +557,7 @@ async function selectProject(id) {
   currentProject = localStorage.project = id;
   if (!$("drawer").hidden) drawDrawer();
   const p = (openProject = await api(`/api/projects/${encodeURIComponent(id)}`));
-  $("projBar").innerHTML = `<div style="flex:1;min-width:0"><p class="eyebrow">${p.status === "active" ? "项目" : "已归档项目"} · 独立记忆</p><h1 class="serif">${esc(pname(p))}</h1></div>
+  $("projBar").innerHTML = `<div style="flex:1;min-width:0"><h1 class="serif">${esc(pname(p))}</h1></div>
     <button class="icon" id="pBrief" data-tip="简报与记忆">${ic("info", 20)}</button>
     <button class="icon" id="pMore" data-tip="更多">${ic("more", 20)}</button>`;
   $("projSlot").querySelector(".projEmpty")?.remove();
