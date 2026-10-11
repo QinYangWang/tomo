@@ -1,5 +1,5 @@
 /**
- * HTTP + WebSocket API for first-party clients (the bundled web/PWA client, and any
+ * HTTP + WebSocket API for first-party clients (the bundled React PWA in ui/, and any
  * future iOS/Android/desktop app). Everything is the owner's.
  *
  * Auth: on first start there is no password; the web client shows a setup screen
@@ -348,7 +348,9 @@ export function startHttp(gateway: Gateway) {
     }),
   );
 
-  app.use("/*", serveStatic({ root: "./web" }));
+  // The React client (ui/, built to ui/dist). Unknown paths fall back to index.html so deep links work.
+  app.use("/*", serveStatic({ root: "./ui/dist" }));
+  app.get("*", serveStatic({ path: "./ui/dist/index.html" }));
 
   Bun.serve({ port: config.http.port, fetch: app.fetch, websocket });
   console.log(`[http] listening on :${config.http.port}`);
