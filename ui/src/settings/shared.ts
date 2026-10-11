@@ -16,7 +16,7 @@ export const chState = (c: Channel): [string, string] => (!chHasToken(c) ? ["未
 export const PAGES: Record<string, [string, IconName]> = {
   profile: ["个人资料", "user"],
   schedules: ["定时任务", "clock"],
-  accounts: ["账户", "link"],
+  accounts: ["消息平台", "link"],
   models: ["AI 模型", "ai"],
   memory: ["记忆", "brain"],
   skills: ["技能", "skill"],

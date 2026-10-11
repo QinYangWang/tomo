@@ -21,7 +21,7 @@ export function SettingsRoot() {
   const P = S.profile ?? {};
   const who = P.nickname || P.name || "";
   const key = S.providers.some(ready);
-  const n = S.channels.filter((c) => c.enabled && c.status.state === "connected").length + S.providers.filter(ready).length;
+  const n = S.channels.filter((c) => c.enabled && c.status.state === "connected").length;
   const vals: Record<string, string> = { profile: who ? "" : "未填写", accounts: n ? `${n} 个` : "未连接", models: key ? S.model.modelId : "未设置", memory: mem.length ? `${mem.length} 条` : "" };
   const logout = async () => {
     await api("/api/auth/logout", { method: "POST" });
@@ -37,7 +37,7 @@ export function SettingsRoot() {
           <span className="setSub">{P.email || (who ? P.work || "" : "填写资料，让 Tomo 更懂你")}</span>
         </span>
       </Link>
-      <Link className="statCard" to="/settings/$page" params={{ page: key ? "models" : "accounts" }}>
+      <Link className="statCard" to="/settings/$page" params={{ page: "models" }}>
         <span className="statTop">
           <span className="serif">Tomo</span>
           <span className="statModel">{key ? <><Icon name="ai" size={14} /><span className="ell">{S.model.modelId}</span></> : "还没接上 AI 模型"}</span>
@@ -118,41 +118,25 @@ function SchedulesPage() {
   );
 }
 
-// ---- 账户: platforms and AI providers in one list; each row opens its own page ----
+// ---- Messaging platforms; each row opens its own page ----
 const Mono = ({ label }: { label: string }) => <span className="logo mono">{label[0]}</span>;
 export function AccountsPage() {
   const S = useSettings().data;
   const nav = useNavigate();
-  const [tab, setTab] = useState(() => sessionStorage.acctTab || "all");
-  useEffect(() => void (sessionStorage.acctTab = tab), [tab]);
   if (!S) return null;
   const open = (account: string) => nav({ to: "/settings/accounts/$account", params: { account } });
-  const rows = [
-    ...S.channels.map((c) => {
-      const [st, cls] = chState(c);
-      return { tab: "channels", id: `channel:${c.id}`, label: CH[c.id].label, logo: <span className="logo"><Icon name={c.id} /></span>, sub: "消息平台 · 私聊和群聊", right: chHasToken(c) ? <span className={`badge ${cls}`}>{st}</span> : <span className="pillBtn">连接</span> };
-    }),
-    ...S.providers.map((p) => ({
-      tab: "providers", id: `provider:${p.id}`, label: p.label, logo: <Mono label={p.label} />,
-      sub: S.model.provider === p.id && ready(p) ? "AI 模型 · 当前主模型" : "AI 模型",
-      right: p.key.set ? <span className="badge ok">····{p.key.last4}</span> : p.fromEnv ? <span className="badge">环境变量</span> : <span className="pillBtn">添加</span>,
-    })),
-  ];
+  const rows = S.channels.map((c) => {
+    const [st, cls] = chState(c);
+    return { id: `channel:${c.id}`, label: CH[c.id].label, logo: <span className="logo"><Icon name={c.id} /></span>, sub: "私聊和群聊", right: chHasToken(c) ? <span className={`badge ${cls}`}>{st}</span> : <span className="pillBtn">连接</span> };
+  });
   return (
-    <>
-      <div className="seg" role="tablist">
-        {[["all", "全部"], ["channels", "消息平台"], ["providers", "AI 模型"]].map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} data-t={k} onClick={() => setTab(k!)}>{l}</button>
-        ))}
-      </div>
-      <div className="group">
-        {rows.filter((r) => tab === "all" || r.tab === tab).map((r) => (
-          <button key={r.id} className="item acct" data-a={r.id} onClick={() => open(r.id)}>
-            {r.logo}<span className="grow"><span className="aName">{r.label}</span><span className="aSub">{r.sub}</span></span>{r.right}
-          </button>
-        ))}
-      </div>
-    </>
+    <div className="group">
+      {rows.map((r) => (
+        <button key={r.id} className="item acct" data-a={r.id} onClick={() => open(r.id)}>
+          {r.logo}<span className="grow"><span className="aName">{r.label}</span><span className="aSub">{r.sub}</span></span>{r.right}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -221,7 +205,6 @@ function ChannelForm({ c }: { c: Channel }) {
 function ProviderForm({ p, S }: { p: Provider; S: Settings }) {
   const [key, setKey] = useState("");
   const [m, setM] = useState<Flash>(null);
-  const nav = useNavigate();
   const test = async () => {
     setM({ text: "测试中…", ok: true });
     const r = await testProvider(p.id);
@@ -257,7 +240,7 @@ function ProviderForm({ p, S }: { p: Provider; S: Settings }) {
         </div>
         <div className="field"><div className="btns"><button className="primary" onClick={save}>保存</button><button className="ghost" disabled={!ready(p)} onClick={test}>测试</button><Msg m={m} /></div></div>
       </div>
-      <p className="note">key 加密保存在你的服务器上，这里只显示末四位。默认用哪个模型，在<a className="inlineLink" onClick={() => nav({ to: "/settings/$page", params: { page: "models" } })}>「AI 模型」</a>里选。</p>
+      <p className="note">key 加密保存在你的服务器上，这里只显示末四位。默认用哪个模型，在「AI 模型」页选。</p>
     </>
   );
 }
@@ -291,13 +274,6 @@ function ModelsPage() {
     setSmall((x) => x ?? fix(S.smallModel));
   }, [S]);
   if (!S) return null;
-  if (!usable.length)
-    return (
-      <div className="empty">还没有可用的模型。<br />先在「账户」里添加一家 AI 供应商的 key。
-        <div className="btns" style={{ justifyContent: "center", marginTop: 14 }}><button className="primary" onClick={() => (sessionStorage.acctTab = "providers", nav({ to: "/settings/$page", params: { page: "accounts" } }))}>添加 key</button></div>
-      </div>
-    );
-  if (!main || !small) return null;
   const save = async () => {
     const r = await api("/api/settings/model", { method: "PUT", body: { model: main, smallModel: small } });
     if (r.error) return setM({ text: r.error, ok: false });
@@ -307,12 +283,23 @@ function ModelsPage() {
   };
   return (
     <>
+      <div className="gtitle">供应商</div>
       <div className="group">
-        <ModelSelect label="主模型 · 对话" value={main} usable={usable} onChange={setMain} />
-        <ModelSelect label="小模型 · 后台反思、子任务和面板刷新" value={small} usable={usable} onChange={setSmall} />
-        <div className="field"><div className="btns"><button className="primary" onClick={save}>保存</button><Msg m={m} /></div></div>
+        {S.providers.map((p) => (
+          <button key={p.id} className="item acct" data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
+            <Mono label={p.label} /><span className="grow"><span className="aName">{p.label}</span><span className="aSub">{S.model.provider === p.id && ready(p) ? "当前主模型" : ""}</span></span>
+            {p.key.set ? <span className="badge ok">····{p.key.last4}</span> : p.fromEnv ? <span className="badge">环境变量</span> : <span className="pillBtn">添加</span>}
+          </button>
+        ))}
       </div>
-      <p className="note">只列出已经填了 key 的供应商。要加别家，去「账户」。</p>
+      <div className="gtitle">默认模型</div>
+      {usable.length ? main && small && (
+        <div className="group">
+          <ModelSelect label="主模型 · 对话" value={main} usable={usable} onChange={setMain} />
+          <ModelSelect label="小模型 · 后台反思、子任务和面板刷新" value={small} usable={usable} onChange={setSmall} />
+          <div className="field"><div className="btns"><button className="primary" onClick={save}>保存</button><Msg m={m} /></div></div>
+        </div>
+      ) : <p className="note">先给一家供应商填上 key，再在这里选默认模型。</p>}
     </>
   );
 }

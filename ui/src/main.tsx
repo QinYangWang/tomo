@@ -29,8 +29,9 @@ const routes = [
   createRoute({ getParentRoute: () => root, path: "/settings", component: SettingsRoot }),
   createRoute({ getParentRoute: () => root, path: "/settings/$page", component: function S() { return <SettingsPage page={page.useParams().page} />; } }),
   createRoute({ getParentRoute: () => root, path: "/settings/accounts/$account", component: function A() { return <AccountPage account={account.useParams().account} />; } }),
+  createRoute({ getParentRoute: () => root, path: "/settings/models/$account", component: function M() { return <AccountPage account={provider.useParams().account} />; } }),
 ] as const;
-const [, chat, , project, , page, account] = routes;
+const [, chat, , project, , page, account, provider] = routes;
 const router = createRouter({ routeTree: root.addChildren([...routes]), defaultPreload: false });
 declare module "@tanstack/react-router" {
   interface Register {
