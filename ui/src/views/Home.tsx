@@ -11,9 +11,7 @@ import { confirmDialog, useShell } from "../store.tsx";
 import type { Panel } from "../types.ts";
 import { CH, dotCls, chHasToken } from "../settings/shared.ts";
 
-const TINTS = ["t-mint", "t-marigold", "t-periwinkle", "t-blush"];
-
-function PanelCard({ p, tint, onEdit }: { p: Panel; tint: string; onEdit: () => void }) {
+function PanelCard({ p, onEdit }: { p: Panel; onEdit: () => void }) {
   const act = async (a: string) => {
     if (a === "refresh") await api(`/api/panels/${p.id}/refresh`, { method: "POST" });
     if (a === "edit") return onEdit();
@@ -25,7 +23,6 @@ function PanelCard({ p, tint, onEdit }: { p: Panel; tint: string; onEdit: () => 
   };
   const head = (
     <div className="ph">
-      <span className={`tint ${tint}`}><Icon name="dashboard" size={18} /></span>
       <h3>{p.title}</h3>
       {p.status !== "building" && (
         <MenuTrigger>
@@ -127,9 +124,9 @@ export function HomeView() {
       <p className="eyebrow">{new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}</p>
       <h1 className="hello serif">{greeting()}{who ? `，${who}` : ""}</h1>
       <div className="panels" id="panels">
-        {ps.map((p, i) => <PanelCard key={p.id} p={p} tint={TINTS[i % TINTS.length]!} onEdit={() => setEditing(p.id)} />)}
+        {ps.map((p) => <PanelCard key={p.id} p={p} onEdit={() => setEditing(p.id)} />)}
         <div className="panel click" onClick={() => toSettings("schedules")}>
-          <div className="ph"><span className="tint t-linen"><Icon name="clock" size={18} /></span><h3>接下来</h3></div>
+          <div className="ph"><h3>接下来</h3></div>
           {next?.next_run ? (
             <><div className="big">{when(next.next_run)}</div><div className="line">{next.title}</div><div className="pf">共 {sch.length} 个定时任务</div></>
           ) : (
@@ -137,14 +134,14 @@ export function HomeView() {
           )}
         </div>
         <div className="panel click" onClick={() => toSettings("memory")}>
-          <div className="ph"><span className="tint t-linen"><Icon name="brain" size={18} /></span><h3>最近记住的</h3></div>
+          <div className="ph"><h3>最近记住的</h3></div>
           {mem.length ? (
             <>{mem.slice(0, 3).map((m) => <div key={m.id} className="line">{m.content}</div>)}<div className="pf">共 {mem.length} 条 · 最近 {ago(mem[0]!.updated_at)}</div></>
           ) : <div className="line muted">还没有记忆。聊得越多，Tomo 越懂你。</div>}
         </div>
         {S && (
           <div className="panel click" onClick={() => toSettings("accounts")}>
-            <div className="ph"><span className="tint t-linen"><Icon name="plug" size={18} /></span><h3>连接</h3></div>
+            <div className="ph"><h3>连接</h3></div>
             <div className="chips">
               {S.channels.map((c) => (
                 <span key={c.id} className="chip"><Icon name={c.id} size={14} />{CH[c.id].label}<span className={`dot ${c.enabled && chHasToken(c) ? dotCls(c.status.state) : ""}`} /></span>
@@ -155,7 +152,7 @@ export function HomeView() {
         )}
         {!ps.length && (
           <div className="panel click" style={{ border: "1.5px dashed var(--ash)", boxShadow: "none", background: "none" }} onClick={() => setNewPanel(true)}>
-            <div className="ph"><span className="tint t-linen"><Icon name="add" size={18} /></span><h3>新建面板</h3></div>
+            <div className="ph"><h3>新建面板</h3></div>
             <div className="line muted">告诉 Tomo 想在这里看到什么：比特币价格、这周的待办、某个网站的更新…</div>
           </div>
         )}
