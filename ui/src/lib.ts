@@ -32,28 +32,27 @@ export function md(src: string): string {
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
       .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   const out: string[] = [];
-  let list: { t: "ul" | "ol"; items: string[] } | null = null;
+  let list: { t: "ul" | "ol"; start?: string; items: string[] } | null = null;
   const flush = () => {
-    if (list) out.push(`<${list.t}>${list.items.map((i) => `<li>${inline(i)}</li>`).join("")}</${list.t}>`);
+    if (list) out.push(`<${list.t}${list.t === "ol" ? ` start="${list.start}"` : ""}>${list.items.map((i) => `<li>${inline(i)}</li>`).join("")}</${list.t}>`);
     list = null;
   };
-  for (const para of src.split(/\n{2,}/)) {
-    for (const line of para.split("\n")) {
-      const ul = line.match(/^\s*[-*•]\s+(.*)/), ol = line.match(/^\s*\d+[.)]\s+(.*)/), h = line.match(/^#{1,4}\s+(.*)/);
-      if (ul || ol) {
-        const t = ul ? "ul" : "ol";
-        if (list && (list as { t: string }).t !== t) flush();
-        list ??= { t, items: [] };
-        list.items.push((ul ?? ol)![1]!);
-        continue;
-      }
-      flush();
-      if (h) out.push(`<h4>${inline(h[1]!)}</h4>`);
-      else if (/^\u0000\d+\u0000$/.test(line.trim())) out.push(line.trim());
-      else if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+  for (const line of src.split("\n")) {
+    if (!line.trim()) continue;
+    const ul = line.match(/^\s*[-*•]\s+(.*)/), ol = line.match(/^\s*(\d+)[.)]\s+(.*)/), h = line.match(/^#{1,4}\s+(.*)/);
+    if (ul || ol) {
+      const t = ul ? "ul" : "ol";
+      if (list && (list as { t: string }).t !== t) flush();
+      list ??= { t, start: ol?.[1], items: [] };
+      list.items.push(ul ? ul[1]! : ol![2]!);
+      continue;
     }
     flush();
+    if (h) out.push(`<h4>${inline(h[1]!)}</h4>`);
+    else if (/^\u0000\d+\u0000$/.test(line.trim())) out.push(line.trim());
+    else if (line.trim()) out.push(`<p>${inline(line)}</p>`);
   }
+  flush();
   return out.join("").replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[Number(i)]!);
 }
 
