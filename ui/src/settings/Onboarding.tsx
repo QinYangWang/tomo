@@ -35,9 +35,9 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
           {dots}
           <span className="obIcon"><Icon name="user" size={26} /></span>
           <h1 className="serif">先认识一下</h1>
-          <p className="muted">Tomo 会在每次对话里用到这些。之后可以在设置 → 个人资料里补充。</p>
+          <p className="muted">Tomo 会这样称呼你</p>
           <div className="group">
-            {([["nickname", "昵称", "怎么称呼你？"], ["name", "姓名", "你的名字"], ["work", "工作", "职位 · 公司"]] as const).map(([k, l, ph], i) => (
+            {([["nickname", "称呼", "Tomo 怎么叫你"], ["name", "姓名", "你的名字"], ["work", "工作", "职位和公司"]] as const).map(([k, l, ph], i) => (
               <label key={k} className="item kv"><span className="k">{l}</span><input id={`ob-${k}`} autoFocus={i === 0} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>
             ))}
           </div>
@@ -47,7 +47,7 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
       </div>
     );
   const go = async () => {
-    if (!key.trim() && !ready(p)) return setM({ text: "先粘贴 key", ok: false });
+    if (!key.trim() && !ready(p)) return setM({ text: "先粘贴密钥", ok: false });
     setBusy(true);
     if (key.trim()) {
       const r = await api(`/api/settings/providers/${pick}`, { method: "PUT", body: { key: key.trim() } });
@@ -58,7 +58,7 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
     const t = await testProvider(pick);
     setBusy(false);
     if (!t.ok) return setM({ text: t.error ?? "失败", ok: false });
-    setM({ text: `可以用 ✓ ${t.model}`, ok: true });
+    setM({ text: `能用了 ✓ ${t.model}`, ok: true });
     setTimeout(finish, 700);
   };
   return (
@@ -66,8 +66,8 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
       <div className="obCard">
         {dots}
         <span className="obIcon"><Icon name="ai" size={26} /></span>
-        <h1 className="serif">接上一个 AI 模型</h1>
-        <p className="muted">Tomo 用你自己的 API key 思考。选一家，粘贴 key 就行。</p>
+        <h1 className="serif">选一个 AI 模型</h1>
+        <p className="muted">选一家，粘贴密钥（API Key）</p>
         <div className="provGrid">
           {S.providers.map((x) => (
             <button key={x.id} data-pv={x.id} className={x.id === pick ? "on" : ""} onClick={() => (setPick(x.id), setM(null))}>{x.label}{ready(x) && <Icon name="tick" size={14} />}</button>
@@ -75,13 +75,13 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
         </div>
         <div className="group">
           <div className="field">
-            <input type="password" id="obKey" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={ready(p) ? "已保存，可直接完成或替换" : `${p.label} API key`} />
+            <input type="password" id="obKey" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={ready(p) ? "已保存，可直接完成" : `${p.label} 的密钥`} />
             <span className="muted small">{p.hint}</span>
           </div>
         </div>
         {m && <span className={`msg ${m.ok ? "ok" : "err"}`}>{m.text}</span>}
-        <button className="primary big" id="obGo" disabled={busy} onClick={go}>{ready(p) && S.model.provider === pick && !key ? "完成" : "保存并测试"}</button>
-        <button className="linkBtn" id="obSkip" onClick={finish}>稍后在设置里配置</button>
+        <button className="primary big" id="obGo" disabled={busy} onClick={go}>{ready(p) && S.model.provider === pick && !key ? "完成" : "保存并试用"}</button>
+        <button className="linkBtn" id="obSkip" onClick={finish}>以后再说</button>
       </div>
     </div>
   );

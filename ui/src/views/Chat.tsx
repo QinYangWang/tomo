@@ -12,18 +12,18 @@ export function ChatView({ c = "home" }: { c?: string }) {
   const { setChat, setSearch } = useShell();
   const label = (() => {
     const x = convs.find((v) => v.id === c || (c === "home" && v.key === "home"));
-    return x && x.key !== "home" ? x.key : "Home";
+    return x && x.key !== "home" ? x.key : "私聊";
   })();
   useEffect(() => setChat({ conv: c, label }), [c, label]);
   return (
     <>
-      <TopBar title={label} sub={c === "home" ? "Telegram、Discord、Slack 和网页的私聊都在这里" : undefined}>
-        <Button className="icon" aria-label="搜索聊天记录" onPress={() => setSearch({ conv: c, label })}><Icon name="search" size={18} /></Button>
+      <TopBar title={label}>
+        <Button className="icon" aria-label="搜索" data-tip="搜索" onPress={() => setSearch({ conv: c, label })}><Icon name="search" size={18} /></Button>
       </TopBar>
       <ChatPane
         conv={c}
-        placeholder="给 Tomo 发消息"
-        empty={<div className="projStart"><b>今天想做点什么？</b></div>}
+        placeholder="发消息给 Tomo"
+        empty={<div className="projStart"><b>想聊点什么？</b></div>}
       />
     </>
   );

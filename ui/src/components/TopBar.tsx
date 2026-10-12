@@ -8,7 +8,7 @@ export function TopBar({ title, sub, onSub, className = "", lead, children }: { 
   const { toggleSide } = useShell();
   return (
     <header className={`topbar ${className}`}>
-      <Button className="icon tbSide" aria-label="显示侧栏" onPress={toggleSide}><Icon name="sidebar" size={18} /></Button>
+      <Button className="icon tbSide" aria-label="列表" data-tip="列表" onPress={toggleSide}><Icon name="sidebar" size={18} /></Button>
       {lead}
       <div className="tbTitle">
         <h1>{title}</h1>

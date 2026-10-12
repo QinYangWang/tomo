@@ -1,35 +1,40 @@
-// Left side of the shell: the icon rail (sections) and the sidebar (chats + projects by day, or the settings nav).
+// Left side of the shell: the icon rail (one page per icon) and, for pages that have one, their own sidebar list.
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "react-aria-components";
 import { Icon, type IconName } from "../icons.tsx";
 import { ago, briefLine, pname } from "../lib.ts";
-import { useConversations, useProjects, useSettings } from "../queries.ts";
-import { GROUPS, PAGES } from "../settings/shared.ts";
+import { useConversations, useProjects } from "../queries.ts";
+import { GROUPS, logout, PAGES } from "../settings/shared.ts";
 import { isPhone, useShell } from "../store.tsx";
 import type { Project } from "../types.ts";
 import { ProjectMenu, RenameBox, useNewProject } from "../views/Projects.tsx";
 
-export type Section = "home" | "chat" | "projects" | "settings";
-const MAIN: [Section, string, IconName, string][] = [["home", "Home", "home", "/"], ["chat", "对话", "chat", "/chat"], ["projects", "项目", "projects", "/projects"]];
-const SHORTCUTS: [string, string, IconName][] = [["schedules", "定时任务", "clock"], ["memory", "记忆", "brain"], ["skills", "技能", "skill"]];
+export type Section = "home" | "chat" | "projects" | "schedules" | "memory" | "skills" | "settings";
+/** Pages that carry a list beside them; the rest use the full width. */
+export const HAS_SIDE: Section[] = ["chat", "projects", "settings"];
+const NAV: [Section, string, IconName, string, boolean?][] = [
+  ["home", "首页", "home", "/"],
+  ["chat", "对话", "chat", "/chat"],
+  ["projects", "项目", "projects", "/projects"],
+  ["schedules", "定时", "clock", "/schedules", true],
+  ["memory", "记忆", "brain", "/memory", true],
+  ["skills", "技能", "skill", "/skills", true],
+];
 
-export function Rail({ section, page, onSettings }: { section: Section; page?: string; onSettings: () => void }) {
+export function Rail({ section, onSettings }: { section: Section; onSettings: () => void }) {
   return (
-    <nav id="rail" aria-label="分区">
+    <nav id="rail" aria-label="导航">
       <div className="railMain">
-        {MAIN.map(([k, label, icon, to]) => (
-          <Link key={k} to={to} data-view={k} aria-label={label} data-tip={label} className={section === k ? "on" : ""}>
-            <Icon name={icon} /><span className="rl">{label}</span>
-          </Link>
-        ))}
-        <span className="railSep" />
-        {SHORTCUTS.map(([k, label, icon]) => (
-          <Link key={k} to="/settings/$page" params={{ page: k }} aria-label={label} data-tip={label} className={`railExtra ${section === "settings" && page === k ? "on" : ""}`}>
-            <Icon name={icon} />
-          </Link>
+        {NAV.map(([k, label, icon, to, extra], i) => (
+          <span key={k} className="railSlot">
+            {i === 3 && <span className="railSep" />}
+            <Link to={to} data-view={k} aria-label={label} data-tip={label} className={`${extra ? "railExtra" : ""} ${section === k ? "on" : ""}`}>
+              <Icon name={icon} /><span className="rl">{label}</span>
+            </Link>
+          </span>
         ))}
       </div>
-      <Button id="setBtn" aria-label="设置" data-tip="设置" className={section === "settings" && !SHORTCUTS.some(([k]) => k === page) ? "on" : ""} onPress={onSettings}>
+      <Button id="setBtn" aria-label="设置" data-tip="设置" className={section === "settings" ? "on" : ""} onPress={onSettings}>
         <Icon name="settings" /><span className="rl">设置</span>
       </Button>
     </nav>
@@ -44,20 +49,48 @@ function byDay(list: Project[]) {
   return g.filter(([, ps]) => ps.length);
 }
 
-export function Sidebar({ section, current, page }: { section: Section; current?: string; page?: string }) {
-  const { toggleSide, closeMobileSide, setNewPanel, setSearch, chat, renaming } = useShell();
+function SideHead({ title, children }: { title: string; children?: React.ReactNode }) {
+  const { toggleSide } = useShell();
+  return (
+    <div className="sideHead">
+      <span className="brand">{title}</span>
+      {children}
+      <Button className="icon sm" id="sideBtn" aria-label="收起" data-tip="收起" onPress={toggleSide}><Icon name="sidebar" size={17} /></Button>
+    </div>
+  );
+}
+
+function ChatList() {
+  const { chat, closeMobileSide } = useShell();
+  const convs = useConversations().data ?? [];
+  const rows = convs.length ? convs : [{ id: "home", key: "home", platform: "web" }];
+  return (
+    <>
+      <SideHead title="对话" />
+      <div className="sideList">
+        {rows.map((v) => {
+          const id = v.key === "home" ? "home" : v.id;
+          return (
+            <Link key={id} to="/chat" search={id === "home" ? {} : { c: id }} className={`sRow ${chat.conv === id ? "on" : ""}`} onClick={() => isPhone() && closeMobileSide()}>
+              <span className="sTitle">{v.key === "home" ? "私聊" : v.key}</span>
+              <span className="sMeta"><Icon name={v.key === "home" ? "user" : "chat"} size={13} /><span className="ell">{v.key === "home" ? "各平台的私聊都在这" : v.platform}</span></span>
+            </Link>
+          );
+        })}
+        <div className="sNote">群聊会各自出现在这里</div>
+      </div>
+    </>
+  );
+}
+
+function ProjectList({ current }: { current?: string }) {
+  const { closeMobileSide, renaming } = useShell();
   const nav = useNavigate();
   const newProject = useNewProject();
-  const convs = useConversations().data ?? [];
   const projects = useProjects().data ?? [];
-  const who = useSettings().data?.profile;
-  const go = (fn: () => void) => () => (fn(), isPhone() && closeMobileSide());
-
   const active = projects.filter((p) => p.status === "active").sort((a, b) => b.updated_at - a.updated_at);
   const archived = projects.filter((p) => p.status !== "active");
-  const convId = section === "chat" ? chat.conv : undefined;
-
-  const pRow = (p: Project) => (
+  const row = (p: Project) => (
     <div
       key={p.id} className={`sRow pRow ${p.id === current ? "on" : ""}`}
       onClick={(e) => {
@@ -67,66 +100,55 @@ export function Sidebar({ section, current, page }: { section: Section; current?
       }}
     >
       <span className="sTitle">{renaming === p.id ? <RenameBox p={p} /> : pname(p)}</span>
-      <span className="sMeta"><Icon name="projects" size={13} /><span className="ell">{briefLine(p.brief) || "项目"}</span><span className="when">{ago(p.updated_at)}</span></span>
+      <span className="sMeta"><span className="ell">{briefLine(p.brief) || " "}</span><span className="when">{ago(p.updated_at)}</span></span>
       <ProjectMenu p={p} />
     </div>
   );
+  return (
+    <>
+      <SideHead title="项目">
+        <Button className="icon sm" id="newProject" aria-label="新建项目" data-tip="新建项目" onPress={() => (newProject(), isPhone() && closeMobileSide())}><Icon name="add" size={18} /></Button>
+      </SideHead>
+      <div className="sideList">
+        {byDay(active).map(([label, ps]) => (
+          <div key={label} className="sGroup"><div className="gtitle">{label}</div>{ps.map(row)}</div>
+        ))}
+        {!active.length && <div className="sNote">还没有项目</div>}
+        {!!archived.length && <div className="sGroup"><div className="gtitle">已归档</div>{archived.map(row)}</div>}
+      </div>
+    </>
+  );
+}
 
+function SettingsNav({ page }: { page?: string }) {
+  const { closeMobileSide } = useShell();
+  return (
+    <>
+      <SideHead title="设置" />
+      <div className="sideList">
+        {GROUPS.map((g, i) => (
+          <div key={i} className="sGroup">
+            {g.map((k) => (
+              <Link key={k} to="/settings/$page" params={{ page: k }} data-s={k} className={`sRow ${page === k ? "on" : ""}`} onClick={() => isPhone() && closeMobileSide()}>
+                <span className="sTitle one"><Icon name={PAGES[k]![1]} size={16} />{PAGES[k]![0]}</span>
+                <span className="sMeta">{PAGES[k]![2]}</span>
+              </Link>
+            ))}
+          </div>
+        ))}
+        <button className="sRow sLogout" id="logoutBtn" onClick={logout}><span className="sTitle one"><Icon name="logout" size={16} />退出登录</span></button>
+      </div>
+    </>
+  );
+}
+
+export function Sidebar({ section, current, page }: { section: Section; current?: string; page?: string }) {
+  const { closeMobileSide } = useShell();
+  if (!HAS_SIDE.includes(section)) return null;
   return (
     <>
       <aside id="side">
-        <div className="sideHead">
-          <span className="brand">{section === "settings" ? "设置" : "Tomo"}</span>
-          <Button className="icon sm" aria-label="搜索聊天记录" onPress={() => setSearch(chat)}><Icon name="search" size={17} /></Button>
-          <Button className="icon sm" id="sideBtn" aria-label="收起侧栏" onPress={toggleSide}><Icon name="sidebar" size={17} /></Button>
-        </div>
-        {section === "settings" ? (
-          <div className="sideList">
-            <Link className="sRow one setMe" to="/settings">
-              <span className="avatar xs">{(who?.nickname || who?.name || "?").slice(0, 1).toUpperCase()}</span>
-              <span className="sTitle">{who?.nickname || who?.name || "我"}</span>
-            </Link>
-            {GROUPS.map((g, i) => (
-              <div key={i} className="sGroup">
-                {g.map((k) => (
-                  <Link key={k} to="/settings/$page" params={{ page: k }} data-s={k} className={`sRow one ${page === k ? "on" : ""}`} onClick={go(() => {})}>
-                    <Icon name={PAGES[k]![1]} size={17} /><span className="sTitle">{PAGES[k]![0]}</span>
-                  </Link>
-                ))}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="sideList">
-            <button className="sAction" id="newProject" aria-label="新建项目" onClick={go(newProject)}><Icon name="edit" size={17} />新建项目</button>
-            <button className="sAction" onClick={go(() => setNewPanel(true))}><Icon name="dashboard" size={17} />新建面板</button>
-
-            <div className="gtitle">对话</div>
-            {(convs.length ? convs : [{ id: "home", key: "home", platform: "web" }]).map((v) => {
-              const id = v.key === "home" ? "home" : v.id;
-              return (
-                <Link key={id} to="/chat" search={id === "home" ? {} : { c: id }} className={`sRow ${convId === id ? "on" : ""}`} onClick={go(() => {})}>
-                  <span className="sTitle">{v.key === "home" ? "Home" : v.key}</span>
-                  <span className="sMeta"><Icon name={v.key === "home" ? "home" : "chat"} size={13} /><span className="ell">{v.key === "home" ? "所有平台的私聊" : v.platform}</span></span>
-                </Link>
-              );
-            })}
-
-            {byDay(active).map(([label, ps]) => (
-              <div key={label} className="sGroup">
-                <div className="gtitle">{label}</div>
-                {ps.map(pRow)}
-              </div>
-            ))}
-            {!active.length && <div className="sEmpty">还没有项目。项目适合要花好几天的事，每个都有自己的对话和记忆。</div>}
-            {!!archived.length && (
-              <div className="sGroup">
-                <div className="gtitle">已归档</div>
-                {archived.map(pRow)}
-              </div>
-            )}
-          </div>
-        )}
+        {section === "chat" ? <ChatList /> : section === "projects" ? <ProjectList current={current} /> : <SettingsNav page={page} />}
       </aside>
       <div className="sideScrim" onClick={closeMobileSide} />
     </>

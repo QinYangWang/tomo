@@ -12,7 +12,7 @@ function Work({ item }: { item: Extract<Item, { k: "work" }> }) {
     <details className={`work ${item.done ? "done" : ""}`}>
       <summary>
         <span className="spin"><Icon name={item.done ? "check" : "loading"} size={16} /></span>
-        <span className="label">{item.done ? `用了 ${item.steps.length} 个步骤` : `正在处理${last ? ` · ${last}` : ""}`}</span>
+        <span className="label">{item.done ? `做了 ${item.steps.length} 步` : `正在${last ? `：${last}` : "处理"}`}</span>
       </summary>
       <ol>{item.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
     </details>

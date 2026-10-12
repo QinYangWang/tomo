@@ -8,15 +8,17 @@ import { Gate } from "./components/Gate.tsx";
 import { SearchSheet } from "./components/SearchSheet.tsx";
 import { Toast } from "./components/Toast.tsx";
 import { Icon } from "./icons.tsx";
-import { Rail, Sidebar, type Section } from "./components/Sidebar.tsx";
+import { HAS_SIDE, Rail, Sidebar, type Section } from "./components/Sidebar.tsx";
 import { TopBar } from "./components/TopBar.tsx";
 import { hasKey, qc, useSettings } from "./queries.ts";
 import { Onboarding } from "./settings/Onboarding.tsx";
-import { useShell } from "./store.tsx";
+import { isPhone, useShell } from "./store.tsx";
 import { NewPanelSheet } from "./views/Home.tsx";
 
-const sectionOf = (path: string): Section =>
-  path.startsWith("/chat") ? "chat" : path.startsWith("/projects") ? "projects" : path.startsWith("/settings") ? "settings" : "home";
+const sectionOf = (path: string): Section => {
+  const s = path.split("/")[1] ?? "";
+  return (["chat", "projects", "schedules", "memory", "skills", "settings"] as const).find((k) => k === s) ?? "home";
+};
 
 export function Root() {
   const [auth, setAuth] = useState<"loading" | "setup" | "login" | "in">("loading");
@@ -48,7 +50,7 @@ function Shell({ firstRun }: { firstRun: boolean }) {
 
   const back = () => {
     if (parts.length === 3) nav({ to: "/settings/$page", params: { page: parts[1]! } });
-    else if (parts.length === 2) nav({ to: "/settings" });
+    else if (parts.length === 2 && isPhone()) nav({ to: "/settings" });
     else nav({ to: lastMain.current });
   };
 
@@ -67,20 +69,21 @@ function Shell({ firstRun }: { firstRun: boolean }) {
   useEffect(() => {
     document.body.classList.toggle("sideClosed", !shell.side);
     document.body.classList.toggle("sideMobile", shell.sideMobile);
-  }, [shell.side, shell.sideMobile]);
+    document.body.classList.toggle("noSide", !HAS_SIDE.includes(section));
+  }, [shell.side, shell.sideMobile, section]);
   const projectId = section === "projects" ? parts[1] : undefined;
   const page = section === "settings" ? parts[1] : undefined;
   const showGuide = !!S && !S.onboarded && !guideDone && (firstRun || !hasKey(S) || !(S.profile?.nickname || S.profile?.name));
 
   return (
     <div id="app">
-      <Rail section={section} page={page} onSettings={() => (section === "settings" ? nav({ to: lastMain.current }) : nav({ to: "/settings" }))} />
+      <Rail section={section} onSettings={() => (section === "settings" ? nav({ to: lastMain.current }) : nav({ to: "/settings" }))} />
       <Sidebar section={section} current={projectId} page={page} />
       <main>
         <section className="view on" id={`v-${section}`}>
           {section === "settings" ? (
             <>
-              <TopBar title="设置" lead={parts.length > 1 ? <Button className="icon" id="backBtn" aria-label="返回" onPress={back}><Icon name="back" size={18} /></Button> : undefined} />
+              <TopBar title="设置" lead={parts.length > 2 || (parts.length > 1 && isPhone()) ? <Button className="icon" id="backBtn" aria-label="返回" onPress={back}><Icon name="back" size={18} /></Button> : undefined} />
               <div className="setScroll"><div className="setPage" id="setRoot"><Outlet /></div></div>
             </>
           ) : <Outlet />}

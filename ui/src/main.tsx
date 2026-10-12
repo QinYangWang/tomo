@@ -11,6 +11,7 @@ import { ShellProvider } from "./store.tsx";
 import { ChatView } from "./views/Chat.tsx";
 import { HomeView } from "./views/Home.tsx";
 import { ProjectsView } from "./views/Projects.tsx";
+import { MemoryView, SchedulesView, SkillsView } from "./views/Tools.tsx";
 
 const root = createRootRoute({ component: Root });
 const routes = [
@@ -27,11 +28,14 @@ const routes = [
   createRoute({ getParentRoute: () => root, path: "/projects", component: () => <ProjectsView /> }),
   createRoute({ getParentRoute: () => root, path: "/projects/$id", component: function P() { return <ProjectsView id={project.useParams().id} />; } }),
   createRoute({ getParentRoute: () => root, path: "/settings", component: SettingsRoot }),
+  createRoute({ getParentRoute: () => root, path: "/schedules", component: SchedulesView }),
+  createRoute({ getParentRoute: () => root, path: "/memory", component: MemoryView }),
+  createRoute({ getParentRoute: () => root, path: "/skills", component: SkillsView }),
   createRoute({ getParentRoute: () => root, path: "/settings/$page", component: function S() { return <SettingsPage page={page.useParams().page} />; } }),
   createRoute({ getParentRoute: () => root, path: "/settings/accounts/$account", component: function A() { return <AccountPage account={account.useParams().account} />; } }),
   createRoute({ getParentRoute: () => root, path: "/settings/models/$account", component: function M() { return <AccountPage account={provider.useParams().account} />; } }),
 ] as const;
-const [, chat, , project, , page, account, provider] = routes;
+const [, chat, , project, , , , , page, account, provider] = routes;
 const router = createRouter({ routeTree: root.addChildren([...routes]), defaultPreload: false });
 declare module "@tanstack/react-router" {
   interface Register {

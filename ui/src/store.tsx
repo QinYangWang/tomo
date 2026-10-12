@@ -59,7 +59,7 @@ export const isPhone = () => innerWidth < 900;
 export function ShellProvider({ children }: { children: ReactNode }) {
   const [newPanel, setNewPanel] = useState(false);
   const [search, setSearch] = useState<Shell["search"]>(null);
-  const [chat, setChat] = useState({ conv: "home", label: "Home" });
+  const [chat, setChat] = useState({ conv: "home", label: "私聊" });
   const [side, setSide] = useState(() => localStorage.side !== "");
   const [sideMobile, setSideMobile] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);

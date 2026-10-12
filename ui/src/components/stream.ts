@@ -80,7 +80,7 @@ export function useStream(conv: string | undefined) {
           } else if (e.type === "tool_execution_start") {
             step(toolLabel(e.toolName, e.args));
             st.typing = true;
-          } else if (e.type === "auto_retry_start") toast(`模型出错，正在重试：${String(e.errorMessage).slice(0, 80)}`);
+          } else if (e.type === "auto_retry_start") toast("模型出了点问题，正在重试");
           else if (e.type === "run_end") {
             st.typing = false;
             finishWork();

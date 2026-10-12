@@ -27,15 +27,15 @@ export function SearchSheet() {
   const jump = (id: string) => {
     setSearch(null);
     const el = document.querySelector<HTMLElement>(`#log [data-entry="${CSS.escape(id)}"]`);
-    if (!el) return toast("这条在更早的上下文里，已不在当前窗口");
+    if (!el) return toast("这条太早了，页面上没有显示");
     el.scrollIntoView({ block: "center", behavior: "smooth" });
     el.classList.remove("flash");
     void el.offsetWidth;
     el.classList.add("flash");
   };
   return (
-    <Sheet open={!!search} onClose={() => setSearch(null)} title={`搜索 · ${search?.label ?? ""}`}>
-      <input className="searchBox" id="hq" autoFocus placeholder="搜索聊天记录" value={q} onChange={(e) => setQ(e.target.value)} />
+    <Sheet open={!!search} onClose={() => setSearch(null)} title={`搜索「${search?.label ?? ""}」`}>
+      <input className="searchBox" id="hq" autoFocus placeholder="输入要找的字" value={q} onChange={(e) => setQ(e.target.value)} />
       {hits && (hits.length ? (
         <div className="group">
           {hits.map((h) => (
@@ -45,7 +45,7 @@ export function SearchSheet() {
             </button>
           ))}
         </div>
-      ) : <div className="empty">没有找到「{q}」</div>)}
+      ) : <div className="empty">没找到「{q}」</div>)}
     </Sheet>
   );
 }

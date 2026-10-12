@@ -35,7 +35,7 @@ export function RenameBox({ p, className }: { p: Project; className?: string }) 
   };
   return (
     <input
-      className={`renameBox ${className ?? ""}`} autoFocus placeholder="项目名称" defaultValue={p.name === UNTITLED ? "" : p.name}
+      className={`renameBox ${className ?? ""}`} autoFocus placeholder="项目名" defaultValue={p.name === UNTITLED ? "" : p.name}
       onFocus={(e) => e.target.select()}
       onKeyDown={(e) => {
         if (e.key === "Enter" && !e.nativeEvent.isComposing) finish(e.currentTarget.value.trim());
@@ -54,7 +54,7 @@ export function ProjectMenu({ p, size = 16, className = "icon sm pMenuBtn" }: { 
     if (a === "rename") return setRenaming(p.id);
     if (a === "archive") await api(`/api/projects/${enc(p.id)}`, { method: "PATCH", body: { status: p.status === "active" ? "archived" : "active" } });
     if (a === "delete") {
-      const ok = await confirmDialog({ title: `删除「${pname(p)}」？`, body: "这个项目的对话、记忆和文件都会被删除，无法恢复。", confirm: "删除", danger: true });
+      const ok = await confirmDialog({ title: `删除「${pname(p)}」？`, body: "对话、记忆和文件都会删除", confirm: "删除", danger: true });
       if (!ok) return;
       await api(`/api/projects/${enc(p.id)}`, { method: "DELETE" });
       if (localStorage.project === p.id) localStorage.project = "";
@@ -80,12 +80,12 @@ function ProjectInfo({ p, open, onClose }: { p: Project; open: boolean; onClose:
   const mem = useMemories("", p.id).data ?? [];
   return (
     <Sheet open={open} onClose={onClose} title={pname(p)} small>
-      <div className="gtitle">简报</div>
-      <div className="doc" style={{ marginTop: 10 }} dangerouslySetInnerHTML={{ __html: p.brief ? md(p.brief) : `<p class="muted">还没有简报。Tomo 弄清这个项目的目标后会自己写，并随工作更新。</p>` }} />
-      <div className="gtitle">项目记忆 · {mem.length} 条</div>
+      <div className="gtitle">简介</div>
+      <div className="doc" style={{ marginTop: 10 }} dangerouslySetInnerHTML={{ __html: p.brief ? md(p.brief) : `<p class="muted">Tomo 了解目标后会写</p>` }} />
+      <div className="gtitle">记忆 · {mem.length}</div>
       {mem.length ? (
-        <div className="group">{mem.map((m) => <div key={m.id} className="item"><span className="grow">{m.content}<div className="muted small">{m.subject} · {ago(m.updated_at)}</div></span></div>)}</div>
-      ) : <p className="note" style={{ marginTop: 14 }}>这个项目还没有记忆。它和日常聊天的记忆是分开的。</p>}
+        <div className="group">{mem.map((m) => <div key={m.id} className="item"><span className="grow">{m.content}<div className="muted small">{ago(m.updated_at)}</div></span></div>)}</div>
+      ) : <p className="note" style={{ marginTop: 14 }}>还没有记忆</p>}
     </Sheet>
   );
 }
@@ -105,10 +105,9 @@ export function ProjectsView({ id }: { id?: string }) {
       <div id="projSlot">
         <TopBar title="项目" />
         <div className="projEmpty">
-          <p className="eyebrow">项目</p>
           <h2 className="serif">还没有项目</h2>
-          <p className="muted">项目适合要花好几天的事：一次旅行、一次搬家、一个产品发布。每个项目都是独立的对话，有自己的记忆。</p>
-          <div className="btns" style={{ justifyContent: "center" }}><button className="primary" onClick={newProject}>开始一个项目</button></div>
+          <p className="muted">适合要做好几天的事</p>
+          <div className="btns" style={{ justifyContent: "center" }}><button className="primary" onClick={newProject}>新建项目</button></div>
         </div>
       </div>
     ) : null;
@@ -131,12 +130,12 @@ function ProjectThread({ id }: { id: string }) {
   return (
     <>
       <TopBar className="projBar" title={renaming === p.id ? <RenameBox p={p} /> : pname(p)} sub={line || undefined} onSub={() => setInfo(true)}>
-        <Button className="icon" aria-label="搜索这个项目" onPress={() => setSearch({ conv: p.conversation_id!, label: pname(p) })}><Icon name="search" size={18} /></Button>
-        <Button className="icon" aria-label="简报与记忆" onPress={() => setInfo(true)}><Icon name="info" size={18} /></Button>
+        <Button className="icon" aria-label="搜索" data-tip="搜索" onPress={() => setSearch({ conv: p.conversation_id!, label: pname(p) })}><Icon name="search" size={18} /></Button>
+        <Button className="icon" aria-label="简介" data-tip="简介" onPress={() => setInfo(true)}><Icon name="info" size={18} /></Button>
         <ProjectMenu p={p} size={18} className="icon" />
       </TopBar>
       <div id="projSlot">
-        <ChatPane conv={p.conversation_id} placeholder="在这个项目里给 Tomo 发消息" empty={<div className="projStart"><b>我们要做些什么？</b></div>} onSent={watchTitle} />
+        <ChatPane conv={p.conversation_id} placeholder="发消息给 Tomo" empty={<div className="projStart"><b>要做什么？</b></div>} onSent={watchTitle} />
       </div>
       <ProjectInfo p={p} open={info} onClose={() => setInfo(false)} />
     </>
