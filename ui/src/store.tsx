@@ -35,7 +35,7 @@ export type ConfirmReq = { title: string; body: string; confirm?: string; cancel
 export const confirmSignal = signal<ConfirmReq | null>(null);
 export const confirmDialog = (o: Omit<ConfirmReq, "resolve">) => new Promise<boolean>((resolve) => confirmSignal.set({ ...o, resolve }));
 
-/** Shell state shared by the top bar's context button and the views it acts on. */
+/** Shell state shared by the rail, the sidebar, the top bars and the views they act on. */
 type Shell = {
   newPanel: boolean;
   setNewPanel: (v: boolean) => void;
@@ -43,24 +43,35 @@ type Shell = {
   setSearch: (v: { conv: string; label: string } | null) => void;
   chat: { conv: string; label: string };
   setChat: (v: { conv: string; label: string }) => void;
-  drawer: boolean;
-  setDrawer: (v: boolean, remember?: boolean) => void;
+  /** desktop: sidebar docked open (remembered) */
+  side: boolean;
+  /** phone: sidebar drawer open */
+  sideMobile: boolean;
+  toggleSide: () => void;
+  closeMobileSide: () => void;
   renaming: string | null;
   setRenaming: (id: string | null) => void;
 };
 const Ctx = createContext<Shell>(null!);
 export const useShell = () => useContext(Ctx);
-const wide = () => innerWidth >= 1100;
+export const isPhone = () => innerWidth < 900;
 
 export function ShellProvider({ children }: { children: ReactNode }) {
   const [newPanel, setNewPanel] = useState(false);
   const [search, setSearch] = useState<Shell["search"]>(null);
   const [chat, setChat] = useState({ conv: "home", label: "Home" });
-  const [drawer, setDrawerState] = useState(() => wide() && localStorage.drawer !== "");
+  const [side, setSide] = useState(() => localStorage.side !== "");
+  const [sideMobile, setSideMobile] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const setDrawer = (v: boolean, remember = true) => {
-    setDrawerState(v);
-    if (remember && wide()) localStorage.drawer = v ? "1" : "";
+  const toggleSide = () => {
+    if (isPhone()) return setSideMobile((v) => !v);
+    localStorage.side = side ? "" : "1";
+    setSide(!side);
   };
-  return <Ctx.Provider value={{ newPanel, setNewPanel, search, setSearch, chat, setChat, drawer, setDrawer, renaming, setRenaming }}>{children}</Ctx.Provider>;
+  const closeMobileSide = () => setSideMobile(false);
+  return (
+    <Ctx.Provider value={{ newPanel, setNewPanel, search, setSearch, chat, setChat, side, sideMobile, toggleSide, closeMobileSide, renaming, setRenaming }}>
+      {children}
+    </Ctx.Provider>
+  );
 }

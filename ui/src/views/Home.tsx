@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button, Menu, MenuItem, MenuTrigger, Popover } from "react-aria-components";
 import { api } from "../api.ts";
 import { Sheet } from "../components/Sheet.tsx";
+import { TopBar } from "../components/TopBar.tsx";
 import { Icon } from "../icons.tsx";
 import { ago, CADENCE, greeting, md, when } from "../lib.ts";
 import { invalidate, useMemories, usePanels, useSchedules, useSettings } from "../queries.ts";
@@ -120,6 +121,11 @@ export function HomeView() {
   const toSettings = (page: string) => nav({ to: "/settings/$page", params: { page } });
   const next = sch[0];
   return (
+    <>
+    <TopBar title="Home">
+      <Button className="icon" id="newPanelBtn" aria-label="新建面板" onPress={() => setNewPanel(true)}><Icon name="add" size={18} /></Button>
+    </TopBar>
+    <div className="scroll">
     <div className="page">
       <p className="eyebrow">{new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}</p>
       <h1 className="hello serif">{greeting()}{who ? `，${who}` : ""}</h1>
@@ -159,5 +165,7 @@ export function HomeView() {
       </div>
       <EditPanel id={editing} onClose={() => setEditing(null)} />
     </div>
+    </div>
+    </>
   );
 }

@@ -1,6 +1,8 @@
 // A conversation: transcript + composer. Used by the chat view and by each project.
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { Icon } from "../icons.tsx";
+import { useSettings } from "../queries.ts";
 import { md } from "../lib.ts";
 import { useStream, type Item } from "./stream.ts";
 
@@ -19,6 +21,7 @@ function Work({ item }: { item: Extract<Item, { k: "work" }> }) {
 
 export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; placeholder: string; empty: ReactNode; onSent?: () => void }) {
   const { items, typing, loaded, send } = useStream(conv);
+  const model = useSettings().data?.model.modelId.split("/").pop();
   const [text, setText] = useState("");
   const thread = useRef<HTMLDivElement>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -54,7 +57,7 @@ export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; 
           {typing && <div className="typing"><i /><i /><i /></div>}
         </div>
       </div>
-      <form id="composer" onSubmit={(e) => (e.preventDefault(), submit())}>
+      <form id="composer" onSubmit={(e) => (e.preventDefault(), submit())} onClick={(e) => e.target === e.currentTarget && ta.current?.focus()}>
         <textarea
           id="t" ref={ta} rows={1} placeholder={placeholder} value={text}
           onChange={(e) => setText(e.target.value)}
@@ -65,7 +68,11 @@ export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; 
             }
           }}
         />
-        <button className="send" aria-label="发送"><Icon name="send" /></button>
+        <div className="cTools">
+          {model && <Link className="cChip" to="/settings/$page" params={{ page: "models" }}><Icon name="ai" size={14} /><span className="ell">{model}</span></Link>}
+          <span className="grow" />
+          <button className="send" aria-label="发送" disabled={!text.trim()}><Icon name="send" size={18} /></button>
+        </div>
       </form>
     </div>
   );
