@@ -30,6 +30,7 @@
  *   GET  /api/history?q=&conversation=   transcript search
  *   GET  /api/projects/:id/git             repository info (storage, last commits, clone URL path)
  *   GET  /api/settings/storage · PUT /api/settings/storage {s3: {...}|null} · POST /api/settings/storage/test {s3}
+ *   GET  /api/settings/backup · PUT /api/settings/backup {enabled} · POST /api/settings/backup/run · GET /api/settings/backup/code
  * Git (smart HTTP, HTTP Basic: any user name, password = the login password or a session token)
  *   GET  /git/<project id>.git/info/refs?service=git-upload-pack|git-receive-pack
  *   POST /git/<project id>.git/git-upload-pack | git-receive-pack
@@ -52,6 +53,7 @@ import { channelStatus, syncChannel } from "../channels/manager.ts";
 import { config } from "../config.ts";
 import { bindings } from "../gateway/bindings.ts";
 import type { Gateway } from "../gateway/gateway.ts";
+import { backupNow, backupSettings, KEEP, list as listBackups, recoveryCode } from "../backup/backup.ts";
 import { advertise, info as repoInfo, removeRepo, rpc, setStorage, storageSettings, testStorage } from "../git/repos.ts";
 
 const ENV_KEYS: Record<string, string> = {
@@ -375,6 +377,25 @@ export function startHttp(gateway: Gateway) {
       return c.json({ ok: false, error: (e as Error).message.slice(0, 300) }, 400);
     }
   });
+  // ---- backups ----
+  const backupView = async () => ({
+    enabled: backupSettings.enabled(),
+    last: backupSettings.last(),
+    keep: KEEP,
+    storage: storageSettings.view().kind,
+    list: await listBackups().catch(() => []),
+  });
+  app.get("/api/settings/backup", async (c) => c.json(await backupView()));
+  app.put("/api/settings/backup", async (c) => {
+    const { enabled } = await c.req.json<{ enabled?: boolean }>();
+    if (typeof enabled === "boolean") backupSettings.setEnabled(enabled);
+    return c.json(await backupView());
+  });
+  app.post("/api/settings/backup/run", async (c) => {
+    const last = await backupNow();
+    return c.json({ ...(await backupView()), ok: last.ok, error: last.error });
+  });
+  app.get("/api/settings/backup/code", (c) => c.json({ code: recoveryCode() }));
   app.get("/api/projects/:id/git", async (c) => {
     const p = projects.get(c.req.param("id"));
     if (!p) return c.json({ error: "not found" }, 404);

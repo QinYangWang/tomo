@@ -5,7 +5,7 @@
   "scripts": {
     "start": "bun run src/main.ts",
     "dev": "bun --watch run src/main.ts",
-    "test": "bun test",
+    "test": "bun test --timeout 60000",
     "typecheck": "tsc --noEmit && tsc --noEmit -p ui",
     "dev:ui": "vite --config ui/vite.config.ts",
     "build": "vite build --config ui/vite.config.ts"

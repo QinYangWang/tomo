@@ -1,5 +1,6 @@
 // Settings: the sidebar lists the pages on wide screens; phones get the index list. The top bar's back button walks up.
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { Button } from "react-aria-components";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, enc, session } from "../api.ts";
 import { Icon, type IconName } from "../icons.tsx";
@@ -45,7 +46,7 @@ export function SettingsRoot() {
 }
 
 export function SettingsPage({ page, children }: { page: string; children?: ReactNode }) {
-  const body: Record<string, () => ReactNode> = { profile: () => <ProfilePage />, accounts: () => <AccountsPage />, models: () => <ModelsPage />, storage: () => <StoragePage />, security: () => <SecurityPage />, about: () => <AboutPage /> };
+  const body: Record<string, () => ReactNode> = { profile: () => <ProfilePage />, accounts: () => <AccountsPage />, models: () => <ModelsPage />, storage: () => <StoragePage />, backup: () => <BackupPage />, security: () => <SecurityPage />, about: () => <AboutPage /> };
   if (TOOLS[page]) return <Navigate to={`/${page}` as "/"} replace />;
   return (
     <>
@@ -329,6 +330,58 @@ function StoragePage() {
         <div className="field"><div className="btns"><button className="primary" disabled={busy} onClick={() => save()}>保存</button><button className="ghost" disabled={busy} onClick={test}>试一下</button><Msg m={m} /></div></div>
       </div>
       <p className="note">支持 Cloudflare R2、AWS S3、MinIO</p>
+    </>
+  );
+}
+
+type Backup = { enabled: boolean; keep: number; storage: "s3" | "local"; last: { at: number; ok: boolean; bytes?: number; error?: string } | null; list: { key: string; at: number }[] };
+const when = (ms: number) => new Date(ms).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const size = (b?: number) => (!b ? "" : b > 1 << 20 ? `${(b / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+function BackupPage() {
+  const [b, setB] = useState<Backup | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  const [m, setM] = useState<Flash>(null);
+  useEffect(() => void api<Backup>("/api/settings/backup").then(setB), []);
+  if (!b) return null;
+  const run = async () => {
+    setBusy(true);
+    setM({ text: "正在备份…", ok: true });
+    const r = await api<Backup & { ok: boolean; error?: string }>("/api/settings/backup/run", { method: "POST" });
+    setBusy(false);
+    setB(r);
+    setM(r.ok ? null : { text: r.error ?? "备份失败", ok: false });
+    if (r.ok) toast("备份好了");
+  };
+  const toggle = async (enabled: boolean) => setB(await api<Backup>("/api/settings/backup", { method: "PUT", body: { enabled } }));
+  const last = b.last;
+  return (
+    <>
+      <div className="group">
+        <label className="item"><Icon name="backup" /><span className="grow">自动备份</span><input type="checkbox" className="toggle" checked={b.enabled} aria-label="自动备份" onChange={(e) => toggle(e.target.checked)} /></label>
+        <div className="item" id="lastBackup">
+          <span className="grow">上次备份<div className="muted small">{last ? (last.ok ? `${when(last.at)} · ${size(last.bytes)}` : `失败：${last.error}`) : "还没有"}</div></span>
+          <span className={`badge ${last?.ok ? "ok" : last ? "err" : ""}`}>{b.storage === "s3" ? "S3" : "本机"}</span>
+        </div>
+        <div className="field"><div className="btns"><button className="primary" disabled={busy} onClick={run}>立即备份</button><Msg m={m} /></div></div>
+      </div>
+      <p className="note">每天 4 点备份到「存储」里设的位置，保留最近 {b.keep} 份</p>
+      <div className="gtitle">恢复码</div>
+      <div className="group">
+        <div className="item"><code className="grow" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
+          {code ? <Button className="icon" aria-label="复制" data-tip="复制" onPress={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))}><Icon name="copy" size={16} /></Button>
+            : <button className="ghost" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</button>}
+        </div>
+      </div>
+      <p className="note">备份是加密的，没有恢复码打不开。请抄下来，存在别处</p>
+      {b.list.length > 0 && (
+        <>
+          <div className="gtitle">最近的备份 · {b.list.length}</div>
+          <div className="group" id="backupList">{b.list.slice(0, 5).map((x) => <div key={x.key} className="item"><span className="grow">{when(x.at)}</span></div>)}</div>
+        </>
+      )}
+      <div className="gtitle">怎么恢复</div>
+      <div className="group"><div className="field"><ol className="steps"><li>新机器上放好 Tomo，设置好同一个存储</li><li>运行 <code>bun run src/restore.ts --code 你的恢复码</code></li><li>启动 Tomo</li></ol></div></div>
     </>
   );
 }

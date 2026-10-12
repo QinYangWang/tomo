@@ -19,10 +19,11 @@ export const PAGES: Record<string, [string, IconName, string]> = {
   accounts: ["聊天软件", "link", "在这些软件里也能找 Tomo"],
   models: ["AI 模型", "ai", "Tomo 用哪个模型思考"],
   storage: ["存储", "storage", "项目文件存在哪里"],
+  backup: ["备份", "backup", "每天自动备份一次"],
   security: ["账号安全", "lock", "绑定账号和登录密码"],
   about: ["关于", "info", "版本和数据位置"],
 };
-export const GROUPS = [["profile"], ["accounts", "models", "storage"], ["security", "about"]];
+export const GROUPS = [["profile"], ["accounts", "models", "storage", "backup"], ["security", "about"]];
 /** Top-level tool pages, each with its own route and layout. */
 export const TOOLS: Record<string, [string, IconName, string]> = {
   schedules: ["定时", "clock", "到点自动做的事"],
