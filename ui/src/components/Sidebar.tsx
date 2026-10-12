@@ -28,6 +28,8 @@ const RAIL_ITEM =
   "relative grid size-10 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground " +
   "max-desk:flex max-desk:h-14 max-desk:w-auto max-desk:flex-1 max-desk:flex-col max-desk:gap-0.5 max-desk:rounded-none max-desk:hover:bg-transparent";
 const RAIL_ON = "on bg-foreground/[0.06] text-foreground max-desk:bg-transparent";
+// Phones show the labels under the icons, so the hover tooltip would only linger after a tap.
+const Tip = ({ content, children }: { content: string; children: React.ReactElement }) => (isPhone() ? children : <Tooltip content={content} side="right">{children}</Tooltip>);
 const RailLabel = ({ children }: { children: string }) => <span className="rl text-[10px] font-medium desk:hidden">{children}</span>;
 
 export function Rail({ section, onSettings }: { section: Section; onSettings: () => void }) {
@@ -40,20 +42,20 @@ export function Rail({ section, onSettings }: { section: Section; onSettings: ()
         {NAV.map(([k, label, icon, to, extra], i) => (
           <span key={k} className={cn("railSlot flex flex-col items-center gap-1 max-desk:flex-1", extra && "max-desk:hidden")}>
             {i === 3 && <span className="railSep my-2 h-px w-6 bg-border max-desk:hidden" />}
-            <Tooltip content={label} side="right">
+            <Tip content={label}>
               <Link to={to} data-view={k} aria-label={label} className={cn(RAIL_ITEM, section === k && RAIL_ON, extra && "railExtra")}>
                 <Icon name={icon} /><RailLabel>{label}</RailLabel>
               </Link>
-            </Tooltip>
+            </Tip>
           </span>
         ))}
       </div>
       <span className="flex max-desk:flex-1 max-desk:justify-center">
-      <Tooltip content="设置" side="right">
+      <Tip content="设置">
         <button type="button" id="setBtn" aria-label="设置" className={cn(RAIL_ITEM, "max-desk:flex-1", section === "settings" && RAIL_ON)} onClick={onSettings}>
           <Icon name="settings" /><RailLabel>设置</RailLabel>
         </button>
-      </Tooltip>
+      </Tip>
       </span>
     </nav>
   );
