@@ -1,5 +1,5 @@
 // The app's controls, built on beUI parts (components/motion, components/agents).
-// Class names like "primary", "icon", "pop", "mi" stay on the elements as stable hooks for tests; the look comes from beUI.
+// Class names like "primary", "icon", "pop", "mi" are only stable hooks for tests; the look is beUI's.
 import { forwardRef, useState, type ReactNode } from "react";
 import { Button as BeButton, type ButtonProps as BeButtonProps } from "@/components/motion/button";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxTrigger } from "@/components/motion/combobox";
@@ -26,7 +26,7 @@ export const Btn = forwardRef<HTMLButtonElement, BtnProps>(function Btn({ kind =
       className={cn(
         kind,
         kind === "danger" && "dangerBtn border-destructive/30 text-destructive hover:bg-destructive/10",
-        kind === "link" && "linkBtn",
+        kind === "link" && "linkBtn text-muted-foreground hover:bg-transparent hover:text-foreground",
         big && "w-full",
         "disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
         className,
@@ -56,10 +56,10 @@ export function Toggle({ checked, onChange, label, className }: { checked: boole
 /** Labeled text field (label above). */
 export function Field({ label, hint, value, onChange, ...p }: { label?: ReactNode; hint?: ReactNode; value: string; onChange: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "defaultValue">) {
   return (
-    <div className="field">
-      {label && <label>{label}</label>}
-      <Input value={value} onChange={onChange} classNames={{ field: "bg-card" }} {...(p as object)} />
-      {hint && <span className="muted small">{hint}</span>}
+    <div className="field flex flex-col gap-2 px-4 py-3">
+      {label && <label className="flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground">{label}</label>}
+      <Input value={value} onChange={onChange} classNames={{ field: "bg-background" }} {...(p as object)} />
+      {hint && <span className="px-1 text-xs text-muted-foreground">{hint}</span>}
     </div>
   );
 }
@@ -96,7 +96,7 @@ export function Pick({ value, onChange, options, label, search }: { value: strin
   if (search)
     return (
       <Combobox value={value || undefined} onValueChange={onChange} className="pick min-w-0">
-        <ComboboxTrigger className="min-w-0 bg-card"><ComboboxInput aria-label={label} placeholder="搜索模型" /></ComboboxTrigger>
+        <ComboboxTrigger className="min-w-0 bg-background"><ComboboxInput aria-label={label} placeholder="搜索模型" /></ComboboxTrigger>
         <ComboboxContent className="max-h-80 overflow-auto">
           <ComboboxList>
             {options.map((o) => <ComboboxItem key={o.value} value={o.value} textValue={o.label} keywords={[o.value]}>{o.label}</ComboboxItem>)}
@@ -107,7 +107,7 @@ export function Pick({ value, onChange, options, label, search }: { value: strin
     );
   return (
     <Select value={value || undefined} onValueChange={onChange} className="pick min-w-0">
-      <SelectTrigger className="bg-card"><span aria-label={label} className="min-w-0 truncate"><SelectValue placeholder="选择" /></span></SelectTrigger>
+      <SelectTrigger className="bg-background"><span aria-label={label} className="min-w-0 truncate"><SelectValue placeholder="选择" /></span></SelectTrigger>
       <SelectContent className="max-h-80 overflow-auto">{options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
     </Select>
   );

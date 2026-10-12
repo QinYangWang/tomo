@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { ChatPane } from "../components/ChatPane.tsx";
 import { IconBtn } from "../components/kit.tsx";
 import { TopBar } from "../components/TopBar.tsx";
-import { Icon } from "../icons.tsx";
 import { useConversations } from "../queries.ts";
 import { useShell } from "../store.tsx";
 
@@ -23,7 +22,7 @@ export function ChatView({ c = "home" }: { c?: string }) {
       <ChatPane
         conv={c}
         placeholder="发消息给 Tomo"
-        empty={<div className="projStart"><b>想聊点什么？</b></div>}
+        empty={<div className="projStart grid min-h-[40vh] place-items-center text-2xl font-semibold tracking-tight">想聊点什么？</div>}
       />
     </>
   );

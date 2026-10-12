@@ -5,6 +5,7 @@ import { api, enc } from "../api.ts";
 import { ChatPane } from "../components/ChatPane.tsx";
 import { ActionMenu, Btn, IconBtn } from "../components/kit.tsx";
 import { Sheet } from "../components/Sheet.tsx";
+import { Grow, Group, Md, Note, Row, SectionTitle, Sub } from "../components/ui.tsx";
 import { TopBar } from "../components/TopBar.tsx";
 import { ago, briefLine, md, pname, UNTITLED } from "../lib.ts";
 import { invalidate, qc, useMemories, useProject, useProjects } from "../queries.ts";
@@ -35,7 +36,7 @@ export function RenameBox({ p, className }: { p: Project; className?: string }) 
   };
   return (
     <input
-      className={`renameBox ${className ?? ""}`} autoFocus placeholder="项目名" defaultValue={p.name === UNTITLED ? "" : p.name}
+      className={`renameBox w-full rounded-lg border border-primary/50 bg-background px-2 py-0.5 text-[inherit] outline-none ring-2 ring-primary/20 ${className ?? ""}`} autoFocus placeholder="项目名" defaultValue={p.name === UNTITLED ? "" : p.name}
       onFocus={(e) => e.target.select()}
       onKeyDown={(e) => {
         if (e.key === "Enter" && !e.nativeEvent.isComposing) finish(e.currentTarget.value.trim());
@@ -51,7 +52,7 @@ export function RenameBox({ p, className }: { p: Project; className?: string }) 
 }
 
 /** Rename · archive/restore · delete, for the sidebar rows and the project bar. */
-export function ProjectMenu({ p, size = 16, className = "sm pMenuBtn" }: { p: Project; size?: number; className?: string }) {
+export function ProjectMenu({ p, size = 16, className = "sm pMenuBtn size-7" }: { p: Project; size?: number; className?: string }) {
   const { setRenaming } = useShell();
   const nav = useNavigate();
   const act = async (a: string) => {
@@ -68,7 +69,7 @@ export function ProjectMenu({ p, size = 16, className = "sm pMenuBtn" }: { p: Pr
   };
   return (
     <ActionMenu
-      className={className.includes("pMenuBtn") ? "pMenuWrap" : undefined}
+      className={className.includes("pMenuBtn") ? "pMenuWrap absolute right-1.5 top-1.5 z-20 desk:hidden desk:group-hover/row:inline-flex desk:[.on_&]:inline-flex" : undefined}
       trigger={<IconBtn className={className} icon="more" label="更多" size={size} tip={false} />}
       onAction={act}
       items={[
@@ -88,12 +89,12 @@ function RepoBox({ p, open }: { p: Project; open: boolean }) {
   const cmd = `git clone ${location.origin}${r.path}`;
   return (
     <>
-      <div className="gtitle">代码仓库 · {r.storage === "s3" ? "S3" : "本机"}</div>
-      <div className="group" id="repoBox">
-        <div className="item"><code className="grow clone">{cmd}</code><IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))} /></div>
-        {r.commits.map((c) => <div key={c.sha} className="item"><span className="grow">{c.subject}<div className="muted small">{c.sha.slice(0, 7)} · {ago(c.at)}</div></span></div>)}
-      </div>
-      <p className="note" style={{ marginTop: 10 }}>密码就是登录密码；Tomo 改的文件会自动提交</p>
+      <SectionTitle>代码仓库 · {r.storage === "s3" ? "S3" : "本机"}</SectionTitle>
+      <Group id="repoBox">
+        <Row><code className="grow clone min-w-0 flex-1 break-all font-mono text-xs leading-5">{cmd}</code><IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))} /></Row>
+        {r.commits.map((c) => <Row key={c.sha}><Grow>{c.subject}<Sub>{c.sha.slice(0, 7)} · {ago(c.at)}</Sub></Grow></Row>)}
+      </Group>
+      <Note>密码就是登录密码；Tomo 改的文件会自动提交</Note>
     </>
   );
 }
@@ -102,12 +103,12 @@ function ProjectInfo({ p, open, onClose }: { p: Project; open: boolean; onClose:
   const mem = useMemories("", p.id).data ?? [];
   return (
     <Sheet open={open} onClose={onClose} title={pname(p)} small>
-      <div className="gtitle">简介</div>
-      <div className="doc" style={{ marginTop: 10 }} dangerouslySetInnerHTML={{ __html: p.brief ? md(p.brief) : `<p class="muted">Tomo 了解目标后会写</p>` }} />
-      <div className="gtitle">记忆 · {mem.length}</div>
+      <SectionTitle>简介</SectionTitle>
+      <Md className="doc rounded-2xl border border-border bg-card px-5 py-4 text-sm" html={p.brief ? md(p.brief) : `<p style="opacity:.6">Tomo 了解目标后会写</p>`} />
+      <SectionTitle>记忆 · {mem.length}</SectionTitle>
       {mem.length ? (
-        <div className="group">{mem.map((m) => <div key={m.id} className="item"><span className="grow">{m.content}<div className="muted small">{ago(m.updated_at)}</div></span></div>)}</div>
-      ) : <p className="note" style={{ marginTop: 14 }}>还没有记忆</p>}
+        <Group>{mem.map((m) => <Row key={m.id}><Grow>{m.content}<Sub>{ago(m.updated_at)}</Sub></Grow></Row>)}</Group>
+      ) : <Note>还没有记忆</Note>}
       <RepoBox p={p} open={open} />
     </Sheet>
   );
@@ -125,12 +126,12 @@ export function ProjectsView({ id }: { id?: string }) {
   }, [id, list.data]);
   if (!id)
     return list.data && !list.data.length ? (
-      <div id="projSlot">
+      <div id="projSlot" className="flex min-h-0 flex-1 flex-col">
         <TopBar title="项目" />
-        <div className="projEmpty">
-          <h2 className="serif">还没有项目</h2>
-          <p className="muted">适合要做好几天的事</p>
-          <div className="btns" style={{ justifyContent: "center" }}><Btn onClick={newProject}>新建项目</Btn></div>
+        <div className="projEmpty flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <h2 className="text-2xl font-semibold tracking-tight">还没有项目</h2>
+          <p className="text-sm text-muted-foreground">适合要做好几天的事</p>
+          <div className="btns mt-4 flex justify-center"><Btn onClick={newProject}>新建项目</Btn></div>
         </div>
       </div>
     ) : null;
@@ -157,8 +158,8 @@ function ProjectThread({ id }: { id: string }) {
         <IconBtn icon="info" label="简介" onClick={() => setInfo(true)} />
         <ProjectMenu p={p} size={18} className="" />
       </TopBar>
-      <div id="projSlot">
-        <ChatPane conv={p.conversation_id} placeholder="发消息给 Tomo" empty={<div className="projStart"><b>要做什么？</b></div>} onSent={watchTitle} />
+      <div id="projSlot" className="flex min-h-0 flex-1 flex-col">
+        <ChatPane conv={p.conversation_id} placeholder="发消息给 Tomo" empty={<div className="projStart grid min-h-[40vh] place-items-center text-2xl font-semibold tracking-tight">要做什么？</div>} onSent={watchTitle} />
       </div>
       <ProjectInfo p={p} open={info} onClose={() => setInfo(false)} />
     </>

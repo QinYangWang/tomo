@@ -4,7 +4,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider as AriaRouter } from "react-aria-components";
 import { Root } from "./App.tsx";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./app.css";
+
+// beUI themes dark mode with a .dark class; follow the system setting.
+const dark = matchMedia("(prefers-color-scheme: dark)");
+const applyTheme = () => document.documentElement.classList.toggle("dark", dark.matches);
+applyTheme();
+dark.addEventListener("change", applyTheme);
 import { qc } from "./queries.ts";
 import { AccountPage, SettingsPage, SettingsRoot } from "./settings/Settings.tsx";
 import { ShellProvider } from "./store.tsx";

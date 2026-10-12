@@ -2,7 +2,6 @@
 import { IconBtn } from "./components/kit.tsx";
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "react-aria-components";
 import { session } from "./api.ts";
 import { ConfirmHost } from "./components/Sheet.tsx";
 import { Gate } from "./components/Gate.tsx";
@@ -77,15 +76,15 @@ function Shell({ firstRun }: { firstRun: boolean }) {
   const showGuide = !!S && !S.onboarded && !guideDone && (firstRun || !hasKey(S) || !(S.profile?.nickname || S.profile?.name));
 
   return (
-    <div id="app">
+    <div id="app" className="flex h-dvh overflow-hidden bg-background text-foreground">
       <Rail section={section} onSettings={() => (section === "settings" ? nav({ to: lastMain.current }) : nav({ to: "/settings" }))} />
       <Sidebar section={section} current={projectId} page={page} />
-      <main>
-        <section className="view on" id={`v-${section}`}>
+      <main className="relative flex min-w-0 flex-1 flex-col max-desk:pb-[calc(64px+env(safe-area-inset-bottom))]">
+        <section className="view flex min-h-0 flex-1 flex-col" id={`v-${section}`}>
           {section === "settings" ? (
             <>
               <TopBar title="设置" lead={parts.length > 2 || (parts.length > 1 && isPhone()) ? <IconBtn id="backBtn" icon="back" label="返回" onClick={back} /> : undefined} />
-              <div className="setScroll"><div className="setPage" id="setRoot"><Outlet /></div></div>
+              <div className="setScroll min-h-0 flex-1 overflow-y-auto"><div className="setPage mx-auto w-full max-w-2xl px-5 pt-10 pb-24 desk:px-8" id="setRoot"><Outlet /></div></div>
             </>
           ) : <Outlet />}
         </section>

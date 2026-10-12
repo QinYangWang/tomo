@@ -9,9 +9,12 @@ import { confirmDialog, isPhone, toast } from "../store.tsx";
 import type { Channel, Provider, Settings } from "../types.ts";
 import { CH, chHasToken, chState, GROUPS, logout, PAGES, ready, testProvider, TOOLS, useProviderAsDefault } from "./shared.ts";
 
-type Flash = { text: string; ok: boolean } | null;
-const Msg = ({ m }: { m: Flash }) => (m ? <span className={`msg ${m.ok ? "ok" : "err"}`}>{m.text}</span> : null);
-const Arrow = () => <span className="arrow"><Icon name="right" size={16} /></span>;
+import { Badge, Btns, Chevron as Arrow, Grow, Group, KV, Logo, Msg, Note, Pad, Pill, Row, RowButton, RowLink, SectionTitle, Sub, type Flash } from "../components/ui.tsx";
+
+const Val = ({ children }: { children: ReactNode }) => <span className="val shrink-0 truncate text-xs text-muted-foreground">{children}</span>;
+const Steps = ({ items }: { items: ReactNode[] }) => <ol className="steps list-decimal space-y-1.5 pl-5 text-sm leading-6 text-muted-foreground marker:text-muted-foreground/60">{items.map((s, i) => <li key={i}>{s}</li>)}</ol>;
+const Mono = ({ label }: { label: string }) => <Logo>{label[0]}</Logo>;
+const Code = ({ children, id }: { children: ReactNode; id?: string }) => <code id={id} className="rounded-md bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-[0.85em]">{children}</code>;
 
 export function SettingsRoot() {
   const S = useSettings().data;
@@ -25,22 +28,23 @@ export function SettingsRoot() {
   const n = S.channels.filter((c) => c.enabled && c.status.state === "connected").length;
   const vals: Record<string, string> = { profile: who ? "" : "未填写", accounts: n ? `${n} 个已连接` : "未连接", models: key ? S.model.modelId.split("/").pop()! : "未设置" };
   const row = (k: string, [label, icon]: [string, IconName, string], to: () => void) => (
-    <button key={k} className="item" data-k={k} onClick={to}>
-      <Icon name={icon} /><span className="grow">{label}</span><span className="val">{vals[k] ?? ""}</span><Arrow />
-    </button>
+    <RowButton key={k} data-k={k} onClick={to}>
+      <span className="text-muted-foreground"><Icon name={icon} /></span><Grow>{label}</Grow><Val>{vals[k] ?? ""}</Val><Arrow />
+    </RowButton>
   );
   return (
     <>
-      <Link className="setHead" to="/settings/$page" params={{ page: "profile" }}>
-        <span className="avatar">{who ? [...who][0]!.toUpperCase() : <Icon name="user" size={26} />}</span>
-        <span className="grow">
-          <span className="setName serif">{who || "你好"}</span>
-          <span className="setSub">{who ? P.email || P.work || "" : "填写资料"}</span>
+      <Link className="setHead mb-6 flex items-center gap-4 rounded-3xl border border-border bg-card p-4" to="/settings/$page" params={{ page: "profile" }}>
+        <span className="avatar grid size-14 shrink-0 place-items-center rounded-full bg-foreground text-xl font-semibold text-background">{who ? [...who][0]!.toUpperCase() : <Icon name="user" size={26} />}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="setName truncate text-lg font-semibold tracking-tight">{who || "你好"}</span>
+          <span className="setSub truncate text-sm text-muted-foreground">{who ? P.email || P.work || "" : "填写资料"}</span>
         </span>
+        <Arrow />
       </Link>
-      <div className="group">{Object.entries(TOOLS).map(([k, v]) => row(k, v, () => nav({ to: `/${k}` as "/" })))}</div>
-      {GROUPS.map((g, i) => <div key={i} className="group">{g.map((k) => row(k, PAGES[k]!, () => nav({ to: "/settings/$page", params: { page: k } })))}</div>)}
-      <div className="group logoutRow"><button className="item" onClick={logout}><Icon name="logout" /><span className="grow">退出登录</span></button></div>
+      <Group>{Object.entries(TOOLS).map(([k, v]) => row(k, v, () => nav({ to: `/${k}` as "/" })))}</Group>
+      {GROUPS.map((g, i) => <Group key={i} className="mt-4">{g.map((k) => row(k, PAGES[k]!, () => nav({ to: "/settings/$page", params: { page: k } })))}</Group>)}
+      <Group className="logoutRow mt-4"><RowButton onClick={logout} className="text-destructive"><Icon name="logout" /><Grow>退出登录</Grow></RowButton></Group>
     </>
   );
 }
@@ -50,8 +54,8 @@ export function SettingsPage({ page, children }: { page: string; children?: Reac
   if (TOOLS[page]) return <Navigate to={`/${page}` as "/"} replace />;
   return (
     <>
-      <h1 className="setTitle serif">{PAGES[page]?.[0] ?? ""}</h1>
-      {PAGES[page] && <p className="setDesc">{PAGES[page]![2]}</p>}
+      <h1 className="setTitle text-[28px] font-semibold tracking-tight">{PAGES[page]?.[0] ?? ""}</h1>
+      {PAGES[page] && <p className="setDesc mt-1 mb-6 text-sm text-muted-foreground">{PAGES[page]![2]}</p>}
       <div className="setBody">{children ?? body[page]?.()}</div>
     </>
   );
@@ -74,19 +78,18 @@ function ProfilePage() {
   return (
     <>
       {PROFILE.map((g, i) => (
-        <div key={i} className="group">
+        <Group key={i} className={i ? "mt-4" : ""}>
           {g.map(([k, label, ph]) => (
-            <label key={k} className="item kv"><span className="k">{label}</span><input defaultValue={(S.profile as Record<string, string>)[k] ?? ""} placeholder={ph} autoComplete="off" onBlur={(e) => save(k, e.target.value)} /></label>
+            <KV key={k} label={label} defaultValue={(S.profile as Record<string, string>)[k] ?? ""} placeholder={ph} autoComplete="off" onBlur={(e) => save(k, e.target.value)} />
           ))}
-        </div>
+        </Group>
       ))}
-      <p className="note">只存在你自己的服务器上</p>
+      <Note>只存在你自己的服务器上</Note>
     </>
   );
 }
 
 // ---- Messaging platforms; each row opens its own page ----
-const Mono = ({ label }: { label: string }) => <span className="logo mono">{label[0]}</span>;
 export function AccountsPage() {
   const S = useSettings().data;
   const nav = useNavigate();
@@ -94,16 +97,16 @@ export function AccountsPage() {
   const open = (account: string) => nav({ to: "/settings/accounts/$account", params: { account } });
   const rows = S.channels.map((c) => {
     const [st, cls] = chState(c);
-    return { id: `channel:${c.id}`, label: CH[c.id].label, logo: <span className="logo"><Icon name={c.id} /></span>, sub: "", right: chHasToken(c) ? <span className={`badge ${cls}`}>{st}</span> : <span className="pillBtn">连接</span> };
+    return { id: `channel:${c.id}`, label: CH[c.id].label, logo: <Logo><Icon name={c.id} size={18} /></Logo>, right: chHasToken(c) ? <Badge tone={cls as "ok"}>{st}</Badge> : <Pill>连接</Pill> };
   });
   return (
-    <div className="group">
+    <Group>
       {rows.map((r) => (
-        <button key={r.id} className="item acct" data-a={r.id} onClick={() => open(r.id)}>
-          {r.logo}<span className="grow"><span className="aName">{r.label}</span><span className="aSub">{r.sub}</span></span>{r.right}
-        </button>
+        <RowButton key={r.id} className="acct" data-a={r.id} onClick={() => open(r.id)}>
+          {r.logo}<Grow className="aName font-medium">{r.label}</Grow>{r.right}
+        </RowButton>
       ))}
-    </div>
+    </Group>
   );
 }
 
@@ -115,8 +118,8 @@ export function AccountPage({ account }: { account: string }) {
   const p = kind === "provider" ? S.providers.find((x) => x.id === id) : undefined;
   return (
     <>
-      <h1 className="setTitle serif">{c ? CH[c.id].label : p?.label}</h1>
-      <div className="setBody">{c ? <ChannelForm c={c} /> : p ? <ProviderForm p={p} S={S} /> : <div className="empty">找不到这一项</div>}</div>
+      <h1 className="setTitle mb-6 text-[28px] font-semibold tracking-tight">{c ? CH[c.id].label : p?.label}</h1>
+      <div className="setBody">{c ? <ChannelForm c={c} /> : p ? <ProviderForm p={p} S={S} /> : <div className="empty py-10 text-center text-sm text-muted-foreground">找不到这一项</div>}</div>
     </>
   );
 }
@@ -145,23 +148,23 @@ function ChannelForm({ c }: { c: Channel }) {
   };
   return (
     <>
-      <div className="group">
-        <div className="item">
-          <span className="logo"><Icon name={c.id} /></span>
-          <span className="grow">{meta.label} <span className={`badge ${cls}`}>{st}</span></span>
+      <Group>
+        <Row>
+          <Logo><Icon name={c.id} size={18} /></Logo>
+          <Grow className="flex items-center gap-2 font-medium">{meta.label} <Badge tone={cls as "ok"}>{st}</Badge></Grow>
           {has && <Toggle className={on && c.status.state !== "connected" ? "pending" : ""} checked={on} label={`开关 ${meta.label}`} onChange={(v) => save(v, false)} />}
-        </div>
+        </Row>
         {Object.entries(meta.fields).map(([f, label]) => {
           const v = c.fields[f] ?? { set: false }, now = v.last4 ? `已保存 ····${v.last4}` : v.fromEnv ? "配置文件里已有" : "";
           return (
-            <Field key={f} label={<>{label} {now && <span className="badge">{now}</span>}</>} type="password" autoComplete="off" placeholder={now ? "留空就不改" : "粘贴到这里"} value={vals[f] ?? ""} onChange={(v) => setVals({ ...vals, [f]: v })} />
+            <Field key={f} label={<>{label} {now && <Badge>{now}</Badge>}</>} type="password" autoComplete="off" placeholder={now ? "留空就不改" : "粘贴到这里"} value={vals[f] ?? ""} onChange={(v) => setVals({ ...vals, [f]: v })} />
           );
         })}
-        <div className="field"><div className="btns"><Btn disabled={busy} onClick={() => save(true, true)}>连接</Btn><Msg m={m} /></div></div>
-      </div>
-      <div className="gtitle">怎么获取</div>
-      <div className="group"><div className="field"><ol className="steps">{meta.steps.map((s) => <li key={s}>{s}</li>)}</ol></div></div>
-      <p className="note">连上后，到「账号安全」绑定你自己</p>
+        <Pad><Btns><Btn disabled={busy} onClick={() => save(true, true)}>连接</Btn><Msg m={m} /></Btns></Pad>
+      </Group>
+      <SectionTitle>怎么获取</SectionTitle>
+      <Group><Pad><Steps items={meta.steps} /></Pad></Group>
+      <Note>连上后，到「账号安全」绑定你自己</Note>
     </>
   );
 }
@@ -191,16 +194,16 @@ function ProviderForm({ p, S }: { p: Provider; S: Settings }) {
   };
   return (
     <>
-      <div className="group">
-        <div className="item">
+      <Group>
+        <Row>
           <Mono label={p.label} />
-          <span className="grow">{p.label} {p.key.set ? <span className="badge ok">已添加</span> : p.fromEnv ? <span className="badge ok">配置文件里已有</span> : <span className="badge">未添加</span>}</span>
+          <Grow className="flex items-center gap-2 font-medium">{p.label} {p.key.set ? <Badge tone="ok">已添加</Badge> : p.fromEnv ? <Badge tone="ok">配置文件里已有</Badge> : <Badge>未添加</Badge>}</Grow>
           {p.key.set && <Btn kind="danger" onClick={del}>删除</Btn>}
-        </div>
+        </Row>
         <Field label="密钥（API Key）" hint={p.hint} type="password" autoComplete="off" placeholder={p.key.set ? `已保存 ····${p.key.last4}，粘贴新的可替换` : "粘贴到这里"} value={key} onChange={setKey} />
-        <div className="field"><div className="btns"><Btn onClick={save}>保存</Btn><Btn kind="secondary" disabled={!ready(p)} onClick={test}>试一下</Btn><Msg m={m} /></div></div>
-      </div>
-      <p className="note">加密保存，只显示末 4 位</p>
+        <Pad><Btns><Btn onClick={save}>保存</Btn><Btn kind="secondary" disabled={!ready(p)} onClick={test}>试一下</Btn><Msg m={m} /></Btns></Pad>
+      </Group>
+      <Note>加密保存，只显示末 4 位</Note>
     </>
   );
 }
@@ -211,13 +214,13 @@ function ModelSelect({ label, value, usable, onChange }: { label: string; value:
     if (models.length && !models.some((m) => m.id === value.modelId)) onChange({ ...value, modelId: models[0]!.id });
   }, [models]);
   return (
-    <div className="field">
-      <label>{label}</label>
-      <div className="row2">
+    <Pad>
+      <label className="px-1 text-xs font-medium text-muted-foreground">{label}</label>
+      <div className="row2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Pick value={value.provider} onChange={(v) => onChange({ provider: v, modelId: "" })} options={usable.map((p) => ({ value: p.id, label: p.label }))} label={`${label} · 供应商`} />
         <Pick value={value.modelId} onChange={(v) => onChange({ ...value, modelId: v })} options={models.map((m) => ({ value: m.id, label: m.name }))} label={`${label} · 模型`} search />
       </div>
-    </div>
+    </Pad>
   );
 }
 function ModelsPage() {
@@ -243,23 +246,23 @@ function ModelsPage() {
   };
   return (
     <>
-      <div className="gtitle">服务商</div>
-      <div className="group">
+      <SectionTitle>服务商</SectionTitle>
+      <Group>
         {S.providers.map((p) => (
-          <button key={p.id} className="item acct" data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
-            <Mono label={p.label} /><span className="grow"><span className="aName">{p.label}</span><span className="aSub">{S.model.provider === p.id && ready(p) ? "正在用" : ""}</span></span>
-            {ready(p) ? <span className="badge ok">已添加</span> : <span className="pillBtn">添加</span>}
-          </button>
+          <RowButton key={p.id} className="acct" data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
+            <Mono label={p.label} /><Grow><span className="aName font-medium">{p.label}</span>{S.model.provider === p.id && ready(p) && <Sub>正在用</Sub>}</Grow>
+            {ready(p) ? <Badge tone="ok">已添加</Badge> : <Pill>添加</Pill>}
+          </RowButton>
         ))}
-      </div>
-      <div className="gtitle">用哪个</div>
+      </Group>
+      <SectionTitle>用哪个</SectionTitle>
       {usable.length ? main && small && (
-        <div className="group">
+        <Group className="overflow-visible">
           <ModelSelect label="聊天" value={main} usable={usable} onChange={setMain} />
           <ModelSelect label="后台（整理记忆、更新面板）" value={small} usable={usable} onChange={setSmall} />
-          <div className="field"><div className="btns"><Btn onClick={save}>保存</Btn><Msg m={m} /></div></div>
-        </div>
-      ) : <p className="note">先添加一家服务商</p>}
+          <Pad><Btns><Btn onClick={save}>保存</Btn><Msg m={m} /></Btns></Pad>
+        </Group>
+      ) : <Note>先添加一家服务商</Note>}
     </>
   );
 }
@@ -306,23 +309,23 @@ function StoragePage() {
   const now = st.secret.last4 ? `已保存 ····${st.secret.last4}` : st.fromEnv ? "配置文件里已有" : "";
   return (
     <>
-      <div className="group">
-        <div className="item" data-storage={st.kind}>
-          <Icon name="storage" />
-          <span className="grow">{st.kind === "s3" ? st.s3?.bucket : "本机"}</span>
-          <span className={`badge ${st.kind === "s3" ? "ok" : ""}`}>{st.kind === "s3" ? "S3" : "默认"}</span>
+      <Group>
+        <Row data-storage={st.kind}>
+          <span className="text-muted-foreground"><Icon name="storage" /></span>
+          <Grow className="font-medium">{st.kind === "s3" ? st.s3?.bucket : "本机"}</Grow>
+          <Badge tone={st.kind === "s3" ? "ok" : ""}>{st.kind === "s3" ? "S3" : "默认"}</Badge>
           {st.kind === "s3" && !st.fromEnv && <Btn kind="danger" disabled={busy} onClick={() => save(true)}>改回本机</Btn>}
-        </div>
-      </div>
-      <div className="gtitle">存到 S3</div>
-      <div className="group" id="s3Form">
+        </Row>
+      </Group>
+      <SectionTitle>存到 S3</SectionTitle>
+      <Group id="s3Form">
         {S3_FIELDS.map(([k, label, ph]) => (
-          <label key={k} className="item kv"><span className="k">{label}</span><input name={k} value={vals[k] ?? ""} placeholder={ph} autoComplete="off" onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></label>
+          <KV key={k} label={label} name={k} value={vals[k] ?? ""} placeholder={ph} autoComplete="off" onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
         ))}
-        <label className="item kv"><span className="k">密钥</span><input name="secret" type="password" value={secret} placeholder={now ? `${now}，留空不改` : "Secret Access Key"} autoComplete="off" onChange={(e) => setSecret(e.target.value)} /></label>
-        <div className="field"><div className="btns"><Btn disabled={busy} onClick={() => save()}>保存</Btn><Btn kind="secondary" disabled={busy} onClick={test}>试一下</Btn><Msg m={m} /></div></div>
-      </div>
-      <p className="note">支持 Cloudflare R2、AWS S3、MinIO</p>
+        <KV label="密钥" name="secret" type="password" value={secret} placeholder={now ? `${now}，留空不改` : "Secret Access Key"} autoComplete="off" onChange={(e) => setSecret(e.target.value)} />
+        <Pad><Btns><Btn disabled={busy} onClick={() => save()}>保存</Btn><Btn kind="secondary" disabled={busy} onClick={test}>试一下</Btn><Msg m={m} /></Btns></Pad>
+      </Group>
+      <Note>支持 Cloudflare R2、AWS S3、MinIO</Note>
     </>
   );
 }
@@ -350,31 +353,31 @@ function BackupPage() {
   const last = b.last;
   return (
     <>
-      <div className="group">
-        <div className="item"><Icon name="backup" /><span className="grow">自动备份</span><Toggle checked={b.enabled} label="自动备份" onChange={toggle} /></div>
-        <div className="item" id="lastBackup">
-          <span className="grow">上次备份<div className="muted small">{last ? (last.ok ? `${when(last.at)} · ${size(last.bytes)}` : `失败：${last.error}`) : "还没有"}</div></span>
-          <span className={`badge ${last?.ok ? "ok" : last ? "err" : ""}`}>{b.storage === "s3" ? "S3" : "本机"}</span>
-        </div>
-        <div className="field"><div className="btns"><Btn disabled={busy} onClick={run}>立即备份</Btn><Msg m={m} /></div></div>
-      </div>
-      <p className="note">每天 4 点备份到「存储」里设的位置，保留最近 {b.keep} 份</p>
-      <div className="gtitle">恢复码</div>
-      <div className="group">
-        <div className="item"><code className="grow" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
+      <Group>
+        <Row><span className="text-muted-foreground"><Icon name="backup" /></span><Grow className="font-medium">自动备份</Grow><Toggle checked={b.enabled} label="自动备份" onChange={toggle} /></Row>
+        <Row id="lastBackup">
+          <Grow>上次备份<Sub>{last ? (last.ok ? `${when(last.at)} · ${size(last.bytes)}` : `失败：${last.error}`) : "还没有"}</Sub></Grow>
+          <Badge tone={last?.ok ? "ok" : last ? "err" : ""}>{b.storage === "s3" ? "S3" : "本机"}</Badge>
+        </Row>
+        <Pad><Btns><Btn disabled={busy} onClick={run}>立即备份</Btn><Msg m={m} /></Btns></Pad>
+      </Group>
+      <Note>每天 4 点备份到「存储」里设的位置，保留最近 {b.keep} 份</Note>
+      <SectionTitle>恢复码</SectionTitle>
+      <Group>
+        <Row><code className="grow min-w-0 flex-1 break-all font-mono text-[13px] tracking-wider" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
           {code ? <IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))} />
-            : <Btn kind="secondary" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</Btn>}
-        </div>
-      </div>
-      <p className="note">备份是加密的，没有恢复码打不开。请抄下来，存在别处</p>
+            : <Btn kind="secondary" size="sm" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</Btn>}
+        </Row>
+      </Group>
+      <Note>备份是加密的，没有恢复码打不开。请抄下来，存在别处</Note>
       {b.list.length > 0 && (
         <>
-          <div className="gtitle">最近的备份 · {b.list.length}</div>
-          <div className="group" id="backupList">{b.list.slice(0, 5).map((x) => <div key={x.key} className="item"><span className="grow">{when(x.at)}</span></div>)}</div>
+          <SectionTitle>最近的备份 · {b.list.length}</SectionTitle>
+          <Group id="backupList">{b.list.slice(0, 5).map((x) => <Row key={x.key}><Grow className="tabular-nums">{when(x.at)}</Grow></Row>)}</Group>
         </>
       )}
-      <div className="gtitle">怎么恢复</div>
-      <div className="group"><div className="field"><ol className="steps"><li>新机器上放好 Tomo，设置好同一个存储</li><li>运行 <code>bun run src/restore.ts --code 你的恢复码</code></li><li>启动 Tomo</li></ol></div></div>
+      <SectionTitle>怎么恢复</SectionTitle>
+      <Group><Pad><Steps items={["新机器上放好 Tomo，设置好同一个存储", <>运行 <Code>bun run src/restore.ts --code 你的恢复码</Code></>, "启动 Tomo"]} /></Pad></Group>
     </>
   );
 }
@@ -413,24 +416,24 @@ function SecurityPage() {
   };
   return (
     <>
-      <div className="gtitle">绑定的账号</div>
-      <div className="group">
+      <SectionTitle>绑定的账号</SectionTitle>
+      <Group>
         {S.owners.length ? S.owners.map((o) => (
-          <div key={o} className="item"><span className="grow"><code>{o}</code></span>{env.has(o) ? <span className="badge">配置文件</span> : <Btn kind="danger" onClick={async () => { await api(`/api/settings/owners/${enc(o)}`, { method: "DELETE" }); invalidate("settings"); }}>解绑</Btn>}</div>
-        )) : <div className="item muted">还没有绑定</div>}
-        <div className="field">
-          <div className="btns"><Btn kind="secondary" onClick={async () => setCode((await api("/api/settings/pair", { method: "POST" })).code)}>获取绑定码</Btn></div>
-          {code && <div><div className="code">{code}</div><p className="note" style={{ margin: 0, textAlign: "center" }}>10 分钟内私聊机器人发送 <code>/pair {code}</code></p></div>}
-        </div>
-      </div>
-      <p className="note">绑定后，只有你能私聊 Tomo</p>
-      <div className="gtitle">登录密码</div>
-      <div className="group">
+          <Row key={o}><Grow><Code>{o}</Code></Grow>{env.has(o) ? <Badge>配置文件</Badge> : <Btn kind="danger" onClick={async () => { await api(`/api/settings/owners/${enc(o)}`, { method: "DELETE" }); invalidate("settings"); }}>解绑</Btn>}</Row>
+        )) : <Row className="text-muted-foreground">还没有绑定</Row>}
+        <Pad>
+          <Btns><Btn kind="secondary" onClick={async () => setCode((await api("/api/settings/pair", { method: "POST" })).code)}>获取绑定码</Btn></Btns>
+          {code && <div className="flex flex-col items-center gap-2 py-3"><div className="code font-mono text-4xl font-semibold tracking-[0.3em]">{code}</div><p className="text-center text-xs text-muted-foreground">10 分钟内私聊机器人发送 <Code>/pair {code}</Code></p></div>}
+        </Pad>
+      </Group>
+      <Note>绑定后，只有你能私聊 Tomo</Note>
+      <SectionTitle>登录密码</SectionTitle>
+      <Group>
         <Field label="当前密码" type="password" autoComplete="current-password" value={cur} onChange={setCur} />
         <Field label="新密码（至少 8 位）" type="password" autoComplete="new-password" value={nxt} onChange={setNxt} />
-        <div className="field"><div className="btns"><Btn onClick={change}>修改</Btn><Msg m={m} /></div></div>
-      </div>
-      <p className="note">改完后，其他设备要重新登录</p>
+        <Pad><Btns><Btn onClick={change}>修改</Btn><Msg m={m} /></Btns></Pad>
+      </Group>
+      <Note>改完后，其他设备要重新登录</Note>
     </>
   );
 }
@@ -438,11 +441,11 @@ function SecurityPage() {
 function AboutPage() {
   return (
     <>
-      <div className="group">
-        <div className="item"><Icon name="sparkles" /><span className="grow">Tomo</span><span className="val">你的私人助手</span></div>
-        <a className="item" href="https://github.com/QinYangWang/tomo" target="_blank" rel="noopener"><span className="grow">源代码</span><Arrow /></a>
-      </div>
-      <p className="note">备份时，复制整个 data 文件夹</p>
+      <Group>
+        <Row><span className="text-primary"><Icon name="sparkles" /></span><Grow className="font-medium">Tomo</Grow><Val>你的私人助手</Val></Row>
+        <RowLink href="https://github.com/QinYangWang/tomo"><Grow>源代码</Grow><Arrow /></RowLink>
+      </Group>
+      <Note>备份时，复制整个 data 文件夹</Note>
     </>
   );
 }

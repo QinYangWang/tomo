@@ -11,6 +11,7 @@ import { MessageScroller } from "@/components/agents/message-scroller";
 import { PromptInput } from "@/components/agents/prompt-input";
 import { Icon } from "../icons.tsx";
 import { md } from "../lib.ts";
+import { PROSE } from "./ui.tsx";
 import { useSettings } from "../queries.ts";
 import { useStream, type Item } from "./stream.ts";
 
@@ -36,10 +37,10 @@ function AiText({ text }: { text: string }) {
   const re = /```(\w*)\n?([\s\S]*?)```/g;
   let at = 0;
   for (let m; (m = re.exec(text)); at = re.lastIndex) {
-    if (m.index > at) parts.push(<div key={at} dangerouslySetInnerHTML={{ __html: md(text.slice(at, m.index)) }} />);
+    if (m.index > at) parts.push(<div key={at} className={PROSE} dangerouslySetInnerHTML={{ __html: md(text.slice(at, m.index)) }} />);
     parts.push(<CodeBlock key={m.index} code={m[2]!.replace(/\n$/, "")} language={lang(m[1]!)} copyable className="my-2 w-full" />);
   }
-  if (at < text.length) parts.push(<div key={at} dangerouslySetInnerHTML={{ __html: md(text.slice(at)) }} />);
+  if (at < text.length) parts.push(<div key={at} className={PROSE} dangerouslySetInnerHTML={{ __html: md(text.slice(at)) }} />);
   return <>{parts}</>;
 }
 
@@ -53,29 +54,29 @@ export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; 
     onSent?.();
   };
   return (
-    <div id="chatPane">
-      <MessageScroller id="thread" followOutput busy={typing} label="对话" className="min-h-0 flex-1" contentClassName="threadInner" contentProps={{ id: "log" } as object}>
+    <div id="chatPane" className="flex min-h-0 flex-1 flex-col">
+      <MessageScroller id="thread" followOutput busy={typing} label="对话" className="min-h-0 flex-1" contentClassName="threadInner mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-6 pb-8 desk:px-7" contentProps={{ id: "log" } as object}>
         {loaded && !items.length && !typing && empty}
         {items.map((it, i) =>
           it.k === "work" ? (
             <Work key={i} item={it} />
           ) : it.k === "ai" ? (
             <Message key={i} from="assistant">
-              <MessageContent><div className="b ai" data-entry={it.id}><AiText text={it.text} /></div></MessageContent>
+              <MessageContent><div className="b ai w-full" data-entry={it.id}><AiText text={it.text} /></div></MessageContent>
             </Message>
           ) : (
             <Message key={i} from="user" animateIn={i === items.length - 1}>
-              <MessageContent><MessageBubble variant="soft" align="end" className="b me" data-entry={it.id}><MessageBubbleContent>{it.text}</MessageBubbleContent></MessageBubble></MessageContent>
+              <MessageContent><MessageBubble variant="soft" align="end" className="b me" data-entry={it.id}><MessageBubbleContent className="whitespace-pre-wrap text-[15px]">{it.text}</MessageBubbleContent></MessageBubble></MessageContent>
             </Message>
           ),
         )}
-        {typing && <div className="typing"><ThinkingShimmer>正在想…</ThinkingShimmer></div>}
+        {typing && <div className="typing self-start px-0.5 text-sm"><ThinkingShimmer>正在想…</ThinkingShimmer></div>}
       </MessageScroller>
-      <div id="composer">
+      <div id="composer" className="mx-auto w-full max-w-3xl px-3 pb-[max(12px,env(safe-area-inset-bottom))] desk:px-7 desk:pb-5">
         <PromptInput
           id="t" value={text} onValueChange={setText} onSubmit={submit} placeholder={placeholder} aria-label={placeholder} minRows={1} maxRows={8}
-          className="composerBox"
-          leadingAction={model && <Link className="cChip" to="/settings/$page" params={{ page: "models" }}><Icon name="ai" size={14} /><span className="ell">{model}</span></Link>}
+          className="composerBox bg-card shadow-[0_8px_30px_-12px_rgb(0_0_0/0.12)] [&_textarea]:text-[15px] max-desk:[&_textarea]:text-base"
+          leadingAction={model && <Link className="cChip inline-flex max-w-[60%] items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground" to="/settings/$page" params={{ page: "models" }}><Icon name="ai" size={14} /><span className="truncate">{model}</span></Link>}
         />
       </div>
     </div>
