@@ -13,6 +13,7 @@ import { noteTurn } from "../agent/evolve/reflection.ts";
 import { pluginAdmin } from "../agent/evolve/plugins.ts";
 import { panels, type Panel } from "../app/panels.ts";
 import { fallbackTitle, projects, UNTITLED } from "../app/projects.ts";
+import { afterTurn, beforeTurn } from "../git/repos.ts";
 import { pairingCodes, runtime } from "../app/settings.ts";
 import { cid, ctx, messageText, MetaDoc, roleOf } from "../agent/util.ts";
 import { bindings, routes } from "./bindings.ts";
@@ -148,6 +149,7 @@ export class Gateway {
     }
 
     const work = (async () => {
+      if (proj) await beforeTurn(proj.id, projects.dir(proj.id)).catch((e) => console.error("[git] before turn", e));
       const typing = setInterval(() => this.typing(convId), 4_000);
       this.typing(convId);
       try {
@@ -163,6 +165,8 @@ export class Gateway {
         }
       } finally {
         clearInterval(typing);
+        // Everything the agent changed in the project's folder becomes a commit, saved to storage.
+        if (proj) await afterTurn(proj.id, projects.dir(proj.id), fallbackTitle(m.text)).catch((e) => console.error("[git] after turn", e));
         // The project agent names an untitled project on its first turn; if it didn't, use the message itself.
         if (proj && projects.get(proj.id)?.name === UNTITLED) projects.rename(proj.id, fallbackTitle(m.text));
       }

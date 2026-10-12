@@ -9,7 +9,7 @@ import { TopBar } from "../components/TopBar.tsx";
 import { Icon } from "../icons.tsx";
 import { ago, briefLine, md, pname, UNTITLED } from "../lib.ts";
 import { invalidate, qc, useMemories, useProject, useProjects } from "../queries.ts";
-import { confirmDialog, useShell } from "../store.tsx";
+import { confirmDialog, toast, useShell } from "../store.tsx";
 import type { Project } from "../types.ts";
 
 export function useNewProject() {
@@ -76,6 +76,24 @@ export function ProjectMenu({ p, size = 16, className = "icon sm pMenuBtn" }: { 
   );
 }
 
+type Repo = { storage: "s3" | "local"; seq: number; path: string; commits: { sha: string; subject: string; at: number }[] };
+function RepoBox({ p, open }: { p: Project; open: boolean }) {
+  const [r, setR] = useState<Repo | null>(null);
+  useEffect(() => void (open && api<Repo>(`/api/projects/${encodeURIComponent(p.id)}/git`).then(setR)), [open, p.id]);
+  if (!r) return null;
+  const cmd = `git clone ${location.origin}${r.path}`;
+  return (
+    <>
+      <div className="gtitle">代码仓库 · {r.storage === "s3" ? "S3" : "本机"}</div>
+      <div className="group" id="repoBox">
+        <div className="item"><code className="grow clone">{cmd}</code><Button className="icon" aria-label="复制" data-tip="复制" onPress={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))}><Icon name="copy" size={16} /></Button></div>
+        {r.commits.map((c) => <div key={c.sha} className="item"><span className="grow">{c.subject}<div className="muted small">{c.sha.slice(0, 7)} · {ago(c.at)}</div></span></div>)}
+      </div>
+      <p className="note" style={{ marginTop: 10 }}>密码就是登录密码；Tomo 改的文件会自动提交</p>
+    </>
+  );
+}
+
 function ProjectInfo({ p, open, onClose }: { p: Project; open: boolean; onClose: () => void }) {
   const mem = useMemories("", p.id).data ?? [];
   return (
@@ -86,6 +104,7 @@ function ProjectInfo({ p, open, onClose }: { p: Project; open: boolean; onClose:
       {mem.length ? (
         <div className="group">{mem.map((m) => <div key={m.id} className="item"><span className="grow">{m.content}<div className="muted small">{ago(m.updated_at)}</div></span></div>)}</div>
       ) : <p className="note" style={{ marginTop: 14 }}>还没有记忆</p>}
+      <RepoBox p={p} open={open} />
     </Sheet>
   );
 }

@@ -45,7 +45,7 @@ export function SettingsRoot() {
 }
 
 export function SettingsPage({ page, children }: { page: string; children?: ReactNode }) {
-  const body: Record<string, () => ReactNode> = { profile: () => <ProfilePage />, accounts: () => <AccountsPage />, models: () => <ModelsPage />, security: () => <SecurityPage />, about: () => <AboutPage /> };
+  const body: Record<string, () => ReactNode> = { profile: () => <ProfilePage />, accounts: () => <AccountsPage />, models: () => <ModelsPage />, storage: () => <StoragePage />, security: () => <SecurityPage />, about: () => <AboutPage /> };
   if (TOOLS[page]) return <Navigate to={`/${page}` as "/"} replace />;
   return (
     <>
@@ -266,6 +266,69 @@ function ModelsPage() {
           <div className="field"><div className="btns"><button className="primary" onClick={save}>保存</button><Msg m={m} /></div></div>
         </div>
       ) : <p className="note">先添加一家服务商</p>}
+    </>
+  );
+}
+
+type Storage = { kind: "s3" | "local"; fromEnv: boolean; s3: { endpoint: string; bucket: string; region: string; accessKeyId: string; prefix: string } | null; secret: { set: boolean; last4?: string } };
+const S3_FIELDS: [string, string, string][] = [
+  ["endpoint", "地址", "https://<账号ID>.r2.cloudflarestorage.com"],
+  ["bucket", "存储桶", "tomo"],
+  ["region", "区域", "R2 填 auto"],
+  ["accessKeyId", "访问 ID", "Access Key ID"],
+  ["prefix", "文件夹", "可不填"],
+];
+function StoragePage() {
+  const [st, setSt] = useState<Storage | null>(null);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [secret, setSecret] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [m, setM] = useState<Flash>(null);
+  const load = async () => {
+    const r = await api<Storage>("/api/settings/storage");
+    setSt(r);
+    setVals({ region: "auto", ...(r.s3 ?? {}) });
+  };
+  useEffect(() => void load(), []);
+  if (!st) return null;
+  const body = () => ({ s3: { ...vals, secretAccessKey: secret || undefined } });
+  const test = async () => {
+    setM({ text: "正在试…", ok: true });
+    const r = await api("/api/settings/storage/test", { method: "POST", body: body() });
+    setM(r.ok ? { text: "能用 ✓", ok: true } : { text: r.error ?? "不能用", ok: false });
+  };
+  const save = async (local = false) => {
+    if (local && !(await confirmDialog({ title: "改回存在本机？", body: "项目会复制回这台服务器", confirm: "改回" }))) return;
+    setBusy(true);
+    setM({ text: local ? "正在复制…" : "正在检查并复制…", ok: true });
+    const r = await api("/api/settings/storage", { method: "PUT", body: local ? { s3: null } : body() });
+    setBusy(false);
+    if (!r.ok) return setM({ text: r.error ?? "保存失败", ok: false });
+    setSecret("");
+    setM(null);
+    toast(local ? "已改回本机" : `已保存，复制了 ${r.copied} 个文件`);
+    load();
+  };
+  const now = st.secret.last4 ? `已保存 ····${st.secret.last4}` : st.fromEnv ? "配置文件里已有" : "";
+  return (
+    <>
+      <div className="group">
+        <div className="item" data-storage={st.kind}>
+          <Icon name="storage" />
+          <span className="grow">{st.kind === "s3" ? st.s3?.bucket : "本机"}</span>
+          <span className={`badge ${st.kind === "s3" ? "ok" : ""}`}>{st.kind === "s3" ? "S3" : "默认"}</span>
+          {st.kind === "s3" && !st.fromEnv && <button className="dangerBtn" disabled={busy} onClick={() => save(true)}>改回本机</button>}
+        </div>
+      </div>
+      <div className="gtitle">存到 S3</div>
+      <div className="group" id="s3Form">
+        {S3_FIELDS.map(([k, label, ph]) => (
+          <label key={k} className="item kv"><span className="k">{label}</span><input name={k} value={vals[k] ?? ""} placeholder={ph} autoComplete="off" onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></label>
+        ))}
+        <label className="item kv"><span className="k">密钥</span><input name="secret" type="password" value={secret} placeholder={now ? `${now}，留空不改` : "Secret Access Key"} autoComplete="off" onChange={(e) => setSecret(e.target.value)} /></label>
+        <div className="field"><div className="btns"><button className="primary" disabled={busy} onClick={() => save()}>保存</button><button className="ghost" disabled={busy} onClick={test}>试一下</button><Msg m={m} /></div></div>
+      </div>
+      <p className="note">支持 Cloudflare R2、AWS S3、MinIO</p>
     </>
   );
 }

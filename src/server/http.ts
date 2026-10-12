@@ -28,6 +28,11 @@
  *   DELETE /api/memories/:id | /api/schedules/:id
  *   GET/POST /api/panels · POST /api/panels/:id/refresh · PUT /api/panels/:id {instruction} · DELETE /api/panels/:id
  *   GET  /api/history?q=&conversation=   transcript search
+ *   GET  /api/projects/:id/git             repository info (storage, last commits, clone URL path)
+ *   GET  /api/settings/storage · PUT /api/settings/storage {s3: {...}|null} · POST /api/settings/storage/test {s3}
+ * Git (smart HTTP, HTTP Basic: any user name, password = the login password or a session token)
+ *   GET  /git/<project id>.git/info/refs?service=git-upload-pack|git-receive-pack
+ *   POST /git/<project id>.git/git-upload-pack | git-receive-pack
  * WebSocket
  *   /ws?conversation=<id>&token=<t>      server -> client: Pi Durable agent events (first a snapshot)
  *                                        client -> server: {"type":"input","text":"..."} | {"type":"abort"}
@@ -47,6 +52,7 @@ import { channelStatus, syncChannel } from "../channels/manager.ts";
 import { config } from "../config.ts";
 import { bindings } from "../gateway/bindings.ts";
 import type { Gateway } from "../gateway/gateway.ts";
+import { advertise, info as repoInfo, removeRepo, rpc, setStorage, storageSettings, testStorage } from "../git/repos.ts";
 
 const ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
@@ -267,7 +273,8 @@ export function startHttp(gateway: Gateway) {
     if (name?.trim()) projects.rename(p.id, name);
     return c.json(projects.get(p.id));
   });
-  app.delete("/api/projects/:id", (c) => {
+  app.delete("/api/projects/:id", async (c) => {
+    await removeRepo(c.req.param("id")).catch((e) => console.error("[git] remove", e));
     projects.remove(c.req.param("id"));
     return c.json({ ok: true });
   });
@@ -347,6 +354,76 @@ export function startHttp(gateway: Gateway) {
       };
     }),
   );
+
+  // ---- storage for project repositories ----
+  app.get("/api/settings/storage", (c) => c.json(storageSettings.view()));
+  app.post("/api/settings/storage/test", async (c) => {
+    const { s3 } = await c.req.json<{ s3: any }>();
+    try {
+      await testStorage(s3);
+      return c.json({ ok: true });
+    } catch (e) {
+      return c.json({ ok: false, error: (e as Error).message.slice(0, 300) });
+    }
+  });
+  app.put("/api/settings/storage", async (c) => {
+    const { s3 } = await c.req.json<{ s3: any }>();
+    try {
+      const r = await setStorage(s3 ?? null);
+      return c.json({ ok: true, copied: r.copied, ...storageSettings.view() });
+    } catch (e) {
+      return c.json({ ok: false, error: (e as Error).message.slice(0, 300) }, 400);
+    }
+  });
+  app.get("/api/projects/:id/git", async (c) => {
+    const p = projects.get(c.req.param("id"));
+    if (!p) return c.json({ error: "not found" }, 404);
+    return c.json({ ...(await repoInfo(p.id, projects.dir(p.id))), path: `/git/${encodeURIComponent(p.id)}.git` });
+  });
+
+  // ---- git smart HTTP ----
+  const gitAuth = async (h: string | undefined) => {
+    if (!h?.startsWith("Basic ")) return false;
+    const raw = Buffer.from(h.slice(6), "base64").toString();
+    const pass = raw.slice(raw.indexOf(":") + 1);
+    return authed(pass) || (await auth.verify(pass));
+  };
+  const deny = () => new Response("Tomo: sign in with your Tomo password\n", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="Tomo"' } });
+  const repoOf = (name: string) => {
+    const id = decodeURIComponent(name).replace(/\.git$/, "");
+    return projects.get(id) ? id : null;
+  };
+  const SERVICES = ["git-upload-pack", "git-receive-pack"] as const;
+  app.get("/git/:repo/info/refs", async (c) => {
+    if (!(await gitAuth(c.req.header("authorization")))) return deny();
+    const id = repoOf(c.req.param("repo"));
+    const svc = c.req.query("service") as (typeof SERVICES)[number];
+    if (!id) return c.text("no such project", 404);
+    if (!SERVICES.includes(svc)) return c.text("dumb HTTP is not supported", 403);
+    try {
+      const body = await advertise(id, svc, c.req.header("git-protocol"));
+      return new Response(body, { headers: { "content-type": `application/x-${svc}-advertisement`, "cache-control": "no-cache" } });
+    } catch (e) {
+      console.error("[git]", e);
+      return c.text(`Tomo: ${(e as Error).message}`, 500);
+    }
+  });
+  for (const svc of SERVICES) {
+    app.post(`/git/:repo/${svc}`, async (c) => {
+      if (!(await gitAuth(c.req.header("authorization")))) return deny();
+      const id = repoOf(c.req.param("repo"));
+      if (!id) return c.text("no such project", 404);
+      let body = new Uint8Array(await c.req.arrayBuffer());
+      if (c.req.header("content-encoding") === "gzip") body = Bun.gunzipSync(body);
+      try {
+        const out = await rpc(id, svc, body, { protocol: c.req.header("git-protocol"), by: "owner" });
+        return new Response(out, { headers: { "content-type": `application/x-${svc}-result`, "cache-control": "no-cache" } });
+      } catch (e) {
+        console.error("[git]", e);
+        return c.text(`Tomo: ${(e as Error).message}`, 500);
+      }
+    });
+  }
 
   // The React client (ui/, built to ui/dist). Unknown paths fall back to index.html so deep links work.
   app.use("/*", serveStatic({ root: "./ui/dist" }));

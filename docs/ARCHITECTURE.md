@@ -79,6 +79,18 @@ confidence: stated(用户亲口说) | inferred(代理推断)
 - 侧栏每个项目都有菜单：重命名（就地编辑）、归档或恢复、删除（二次确认）。删除会清掉项目行、它的记忆空间和工作目录。
 - `/project` 命令只列项目，不再在当前对话里切换项目。
 
+### 5.1 项目仓库（S3 兼容存储上的 git）
+
+参考 [walgit](https://github.com/tobi/walgit) 的思路做的精简版：**存储桶才是仓库，本机磁盘只是缓存**。
+
+- 存储：设置 → 存储 里填写任意 S3 兼容存储（Cloudflare R2、AWS S3、MinIO…），或用 `TOMO_S3_*` 环境变量；都没有时存在 `data/objects`（本地文件夹，语义相同）。切换存储时先验证再整体复制，失败不改动。
+- 桶内布局 `repos/<项目id>/`：`manifest.json`（refs + pack 列表，只用 If-Match 比较并交换改写，这一步就是提交点）、`log/<seq>.json`（每次 push 的不可变记录）、`packs/<sha256>.pack`（按内容寻址的不可变 pack）。
+- 读：每次请求先对 manifest 做条件 GET（304 就直接用本地缓存），缺的 pack 下载后 `git index-pack`，refs 改写成与 manifest 完全一致。
+- 写：上游 `git receive-pack` 收包，pre-receive 钩子（`src/git/hook.ts`）把新对象打成一个 pack 上传、写日志、CAS manifest；成功后客户端才看到 ok。ref 在桶里已被别人改过就拒绝。
+- 智能 HTTP：`/git/<项目id>.git`，HTTP Basic，密码是登录密码。`git clone / fetch / push` 都可用（v0/v2）。
+- 工作区：项目文件夹（agent 工具的 cwd）是缓存的一个克隆。每轮对话前快进到别人推上来的内容，对话后把 Tomo 改的文件自动提交并推送（`Tomo: <消息摘要>`）。
+- 不做：LFS、多机部署与租约、压缩合并（compaction）、网页浏览代码。
+
 ## 6. 持续进化
 
 三条回路，从安全到强力：
