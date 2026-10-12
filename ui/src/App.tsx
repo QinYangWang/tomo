@@ -1,4 +1,5 @@
 // Shell: sign-in gate, then rail · sidebar · main pane (Synara-style three columns; the sidebar is a drawer on phones).
+import { IconBtn } from "./components/kit.tsx";
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "react-aria-components";
@@ -61,7 +62,7 @@ function Shell({ firstRun }: { firstRun: boolean }) {
         shell.setSearch(shell.chat);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "b") (e.preventDefault(), shell.toggleSide());
-      if (e.key === "Escape" && section === "settings" && !document.querySelector(".scrim, .alertWrap") && !(e.target as HTMLElement).closest?.("input, textarea")) back();
+      if (e.key === "Escape" && section === "settings" && !document.querySelector("[role=dialog]") && !(e.target as HTMLElement).closest?.("input, textarea")) back();
     };
     addEventListener("keydown", key);
     return () => removeEventListener("keydown", key);
@@ -83,7 +84,7 @@ function Shell({ firstRun }: { firstRun: boolean }) {
         <section className="view on" id={`v-${section}`}>
           {section === "settings" ? (
             <>
-              <TopBar title="设置" lead={parts.length > 2 || (parts.length > 1 && isPhone()) ? <Button className="icon" id="backBtn" aria-label="返回" onPress={back}><Icon name="back" size={18} /></Button> : undefined} />
+              <TopBar title="设置" lead={parts.length > 2 || (parts.length > 1 && isPhone()) ? <IconBtn id="backBtn" icon="back" label="返回" onClick={back} /> : undefined} />
               <div className="setScroll"><div className="setPage" id="setRoot"><Outlet /></div></div>
             </>
           ) : <Outlet />}

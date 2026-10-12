@@ -1,6 +1,8 @@
 // Left side of the shell: the icon rail (one page per icon) and, for pages that have one, their own sidebar list.
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Button } from "react-aria-components";
+import { Tooltip } from "@/components/motion/tooltip";
+import { SharedLayoutBg } from "@/components/motion/shared-layout-bg";
+import { IconBtn } from "./kit.tsx";
 import { Icon, type IconName } from "../icons.tsx";
 import { ago, briefLine, pname } from "../lib.ts";
 import { useConversations, useProjects } from "../queries.ts";
@@ -28,20 +30,27 @@ export function Rail({ section, onSettings }: { section: Section; onSettings: ()
         {NAV.map(([k, label, icon, to, extra], i) => (
           <span key={k} className="railSlot">
             {i === 3 && <span className="railSep" />}
-            <Link to={to} data-view={k} aria-label={label} data-tip={label} className={`${extra ? "railExtra" : ""} ${section === k ? "on" : ""}`}>
-              <Icon name={icon} /><span className="rl">{label}</span>
-            </Link>
+            <Tooltip content={label} side="right">
+              <Link to={to} data-view={k} aria-label={label} className={`${extra ? "railExtra" : ""} ${section === k ? "on" : ""}`}>
+                <Icon name={icon} /><span className="rl">{label}</span>
+              </Link>
+            </Tooltip>
           </span>
         ))}
       </div>
-      <Button id="setBtn" aria-label="设置" data-tip="设置" className={section === "settings" ? "on" : ""} onPress={onSettings}>
-        <Icon name="settings" /><span className="rl">设置</span>
-      </Button>
+      <Tooltip content="设置" side="right">
+        <button type="button" id="setBtn" aria-label="设置" className={section === "settings" ? "on" : ""} onClick={onSettings}>
+          <Icon name="settings" /><span className="rl">设置</span>
+        </button>
+      </Tooltip>
     </nav>
   );
 }
 
 const DAY = 86400000;
+const PILL = "rounded-[8px] bg-muted";
+/** Rows share one hover highlight that glides between them (beUI shared layout). */
+const Rows = ({ children }: { children: React.ReactNode }) => <SharedLayoutBg className="sRows" inset={0} pillClassName={PILL}>{children}</SharedLayoutBg>;
 function byDay(list: Project[]) {
   const today = +new Date(new Date().toDateString());
   const g: [string, Project[]][] = [["今天", []], ["昨天", []], ["本周", []], ["更早", []]];
@@ -55,7 +64,7 @@ function SideHead({ title, children }: { title: string; children?: React.ReactNo
     <div className="sideHead">
       <span className="brand">{title}</span>
       {children}
-      <Button className="icon sm" id="sideBtn" aria-label="收起" data-tip="收起" onPress={toggleSide}><Icon name="sidebar" size={17} /></Button>
+      <IconBtn className="sm" id="sideBtn" icon="sidebar" label="收起" size={17} onClick={toggleSide} />
     </div>
   );
 }
@@ -67,7 +76,7 @@ function ChatList() {
   return (
     <>
       <SideHead title="对话" />
-      <div className="sideList">
+      <div className="sideList"><Rows>
         {rows.map((v) => {
           const id = v.key === "home" ? "home" : v.id;
           return (
@@ -77,6 +86,7 @@ function ChatList() {
             </Link>
           );
         })}
+        </Rows>
         <div className="sNote">群聊会各自出现在这里</div>
       </div>
     </>
@@ -99,7 +109,7 @@ function ProjectList({ current }: { current?: string }) {
         if (isPhone()) closeMobileSide();
       }}
     >
-      <span className="sTitle">{renaming === p.id ? <RenameBox p={p} /> : pname(p)}</span>
+      <span className="sTitle">{renaming === p.id && p.id !== current ? <RenameBox p={p} /> : pname(p)}</span>
       <span className="sMeta"><span className="ell">{briefLine(p.brief) || " "}</span><span className="when">{ago(p.updated_at)}</span></span>
       <ProjectMenu p={p} />
     </div>
@@ -107,14 +117,14 @@ function ProjectList({ current }: { current?: string }) {
   return (
     <>
       <SideHead title="项目">
-        <Button className="icon sm" id="newProject" aria-label="新建项目" data-tip="新建项目" onPress={() => (newProject(), isPhone() && closeMobileSide())}><Icon name="add" size={18} /></Button>
+        <IconBtn className="sm" id="newProject" icon="add" label="新建项目" onClick={() => (newProject(), isPhone() && closeMobileSide())} />
       </SideHead>
       <div className="sideList">
         {byDay(active).map(([label, ps]) => (
-          <div key={label} className="sGroup"><div className="gtitle">{label}</div>{ps.map(row)}</div>
+          <div key={label} className="sGroup"><div className="gtitle">{label}</div><Rows>{ps.map(row)}</Rows></div>
         ))}
         {!active.length && <div className="sNote">还没有项目</div>}
-        {!!archived.length && <div className="sGroup"><div className="gtitle">已归档</div>{archived.map(row)}</div>}
+        {!!archived.length && <div className="sGroup"><div className="gtitle">已归档</div><Rows>{archived.map(row)}</Rows></div>}
       </div>
     </>
   );
@@ -127,14 +137,14 @@ function SettingsNav({ page }: { page?: string }) {
       <SideHead title="设置" />
       <div className="sideList">
         {GROUPS.map((g, i) => (
-          <div key={i} className="sGroup">
+          <Rows key={i}>
             {g.map((k) => (
               <Link key={k} to="/settings/$page" params={{ page: k }} data-s={k} className={`sRow ${page === k ? "on" : ""}`} onClick={() => isPhone() && closeMobileSide()}>
                 <span className="sTitle one"><Icon name={PAGES[k]![1]} size={16} />{PAGES[k]![0]}</span>
                 <span className="sMeta">{PAGES[k]![2]}</span>
               </Link>
             ))}
-          </div>
+          </Rows>
         ))}
         <button className="sRow sLogout" id="logoutBtn" onClick={logout}><span className="sTitle one"><Icon name="logout" size={16} />退出登录</span></button>
       </div>

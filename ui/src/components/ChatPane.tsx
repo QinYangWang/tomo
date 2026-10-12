@@ -1,79 +1,83 @@
-// A conversation: transcript + composer. Used by the chat view and by each project.
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+// A conversation: transcript + composer, on beUI's agent parts. Used by the chat view and by each project.
 import { Link } from "@tanstack/react-router";
+import { useMemo, useState, type ReactNode } from "react";
+import { AgentActivity } from "@/components/agents/agent-activity";
+import type { AgentCodeLanguage } from "@/components/agents/agent-code";
+import { CodeBlock } from "@/components/agents/code-block";
+import { ThinkingShimmer } from "@/components/agents/loading-states/thinking-shimmer";
+import { Message, MessageContent } from "@/components/agents/message";
+import { MessageBubble, MessageBubbleContent } from "@/components/agents/message-bubble";
+import { MessageScroller } from "@/components/agents/message-scroller";
+import { PromptInput } from "@/components/agents/prompt-input";
 import { Icon } from "../icons.tsx";
-import { useSettings } from "../queries.ts";
 import { md } from "../lib.ts";
+import { useSettings } from "../queries.ts";
 import { useStream, type Item } from "./stream.ts";
 
 function Work({ item }: { item: Extract<Item, { k: "work" }> }) {
-  const last = item.steps.at(-1);
-  return (
-    <details className={`work ${item.done ? "done" : ""}`}>
-      <summary>
-        <span className="spin"><Icon name={item.done ? "check" : "loading"} size={16} /></span>
-        <span className="label">{item.done ? `做了 ${item.steps.length} 步` : `正在${last ? `：${last}` : "处理"}`}</span>
-      </summary>
-      <ol>{item.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
-    </details>
+  const items = useMemo(
+    () => item.steps.map((s, i) => ({ id: String(i), type: "step" as const, label: s, status: item.done || i < item.steps.length - 1 ? ("complete" as const) : ("active" as const) })),
+    [item.steps.length, item.done],
   );
+  return (
+    <AgentActivity
+      className={`work ${item.done ? "done" : ""}`} items={items} status={item.done ? "complete" : "working"} collapseOnComplete
+      activeLabel={`正在${item.steps.at(-1) ? `：${item.steps.at(-1)}` : "处理"}`} summary={`做了 ${item.steps.length} 步`} maxHeight={220}
+    />
+  );
+}
+
+const LANGS: Record<string, AgentCodeLanguage> = { ts: "typescript", typescript: "typescript", js: "typescript", javascript: "typescript", tsx: "tsx", jsx: "tsx", sh: "bash", shell: "bash", bash: "bash", zsh: "bash", console: "bash", json: "json", diff: "diff" };
+const lang = (l: string): AgentCodeLanguage => LANGS[l.toLowerCase()] ?? "text";
+
+/** Assistant text: prose through the markdown renderer, fenced code through beUI's code block. */
+function AiText({ text }: { text: string }) {
+  const parts: ReactNode[] = [];
+  const re = /```(\w*)\n?([\s\S]*?)```/g;
+  let at = 0;
+  for (let m; (m = re.exec(text)); at = re.lastIndex) {
+    if (m.index > at) parts.push(<div key={at} dangerouslySetInnerHTML={{ __html: md(text.slice(at, m.index)) }} />);
+    parts.push(<CodeBlock key={m.index} code={m[2]!.replace(/\n$/, "")} language={lang(m[1]!)} copyable className="my-2 w-full" />);
+  }
+  if (at < text.length) parts.push(<div key={at} dangerouslySetInnerHTML={{ __html: md(text.slice(at)) }} />);
+  return <>{parts}</>;
 }
 
 export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; placeholder: string; empty: ReactNode; onSent?: () => void }) {
   const { items, typing, loaded, send } = useStream(conv);
   const model = useSettings().data?.model.modelId.split("/").pop();
   const [text, setText] = useState("");
-  const thread = useRef<HTMLDivElement>(null);
-  const ta = useRef<HTMLTextAreaElement>(null);
-  const last = items.at(-1);
-  const tail = `${items.length}:${last && "text" in last ? last.text.length : last?.steps.length}:${typing}`;
-  useLayoutEffect(() => {
-    if (thread.current) thread.current.scrollTop = 1e9;
-  }, [tail]);
-  useLayoutEffect(() => {
-    const t = ta.current;
-    if (!t) return;
-    t.style.height = "";
-    t.style.height = Math.min(t.scrollHeight, 200) + "px";
-  }, [text]);
-  const submit = () => {
-    const v = text.trim();
-    if (!v || !send(v)) return;
+  const submit = (v: string) => {
+    if (!v.trim() || !send(v.trim())) return;
     setText("");
     onSent?.();
   };
   return (
     <div id="chatPane">
-      <div id="thread" ref={thread}>
-        <div className="threadInner" id="log">
-          {loaded && !items.length && !typing && empty}
-          {items.map((it, i) =>
-            it.k === "work" ? <Work key={i} item={it} /> : it.k === "ai" ? (
-              <div key={i} className="b ai" data-entry={it.id} dangerouslySetInnerHTML={{ __html: md(it.text) }} />
-            ) : (
-              <div key={i} className="b me" data-entry={it.id}>{it.text}</div>
-            ),
-          )}
-          {typing && <div className="typing"><i /><i /><i /></div>}
-        </div>
-      </div>
-      <form id="composer" onSubmit={(e) => (e.preventDefault(), submit())} onClick={(e) => e.target === e.currentTarget && ta.current?.focus()}>
-        <textarea
-          id="t" ref={ta} rows={1} placeholder={placeholder} value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && matchMedia("(pointer:fine)").matches) {
-              e.preventDefault();
-              submit();
-            }
-          }}
+      <MessageScroller id="thread" followOutput busy={typing} label="对话" className="min-h-0 flex-1" contentClassName="threadInner" contentProps={{ id: "log" } as object}>
+        {loaded && !items.length && !typing && empty}
+        {items.map((it, i) =>
+          it.k === "work" ? (
+            <Work key={i} item={it} />
+          ) : it.k === "ai" ? (
+            <Message key={i} from="assistant">
+              <MessageContent><div className="b ai" data-entry={it.id}><AiText text={it.text} /></div></MessageContent>
+            </Message>
+          ) : (
+            <Message key={i} from="user" animateIn={i === items.length - 1}>
+              <MessageContent><MessageBubble variant="soft" align="end" className="b me" data-entry={it.id}><MessageBubbleContent>{it.text}</MessageBubbleContent></MessageBubble></MessageContent>
+            </Message>
+          ),
+        )}
+        {typing && <div className="typing"><ThinkingShimmer>正在想…</ThinkingShimmer></div>}
+      </MessageScroller>
+      <div id="composer">
+        <PromptInput
+          id="t" value={text} onValueChange={setText} onSubmit={submit} placeholder={placeholder} aria-label={placeholder} minRows={1} maxRows={8}
+          className="composerBox"
+          leadingAction={model && <Link className="cChip" to="/settings/$page" params={{ page: "models" }}><Icon name="ai" size={14} /><span className="ell">{model}</span></Link>}
         />
-        <div className="cTools">
-          {model && <Link className="cChip" to="/settings/$page" params={{ page: "models" }}><Icon name="ai" size={14} /><span className="ell">{model}</span></Link>}
-          <span className="grow" />
-          <button className="send" aria-label="发送" disabled={!text.trim()}><Icon name="send" size={18} /></button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }

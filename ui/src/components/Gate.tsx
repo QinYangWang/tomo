@@ -1,4 +1,5 @@
 // First run sets the password; afterwards this is the sign-in screen.
+import { Btn, Input } from "./kit.tsx";
 import { useState, type FormEvent } from "react";
 import { session } from "../api.ts";
 
@@ -20,10 +21,10 @@ export function Gate({ setup, onDone }: { setup: boolean; onDone: (firstRun: boo
         <div className="mark">T</div>
         <h1 className="serif">{setup ? "欢迎使用 Tomo" : "Tomo"}</h1>
         <p className="muted">{setup ? "先设一个登录密码" : "输入密码"}</p>
-        <input id="pw" type="password" placeholder="密码" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} />
-        {setup && <input type="password" placeholder="再输一次" value={pw2} onChange={(e) => setPw2(e.target.value)} />}
+        <Input id="pw" type="password" placeholder="密码" autoFocus value={pw} onChange={setPw} classNames={{ field: "bg-card" }} />
+        {setup && <Input type="password" placeholder="再输一次" value={pw2} onChange={setPw2} classNames={{ field: "bg-card" }} />}
         <p className="err">{err}</p>
-        <button className="primary" id="gateBtn">{setup ? "开始" : "登录"}</button>
+        <Btn type="submit" id="gateBtn" className="w-full">{setup ? "开始" : "登录"}</Btn>
       </form>
     </div>
   );

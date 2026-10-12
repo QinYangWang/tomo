@@ -1,4 +1,5 @@
 // First-run guide: who you are, then an AI provider. Both steps can be skipped; settings has the rest.
+import { Btn, Input } from "../components/kit.tsx";
 import { useState } from "react";
 import { api } from "../api.ts";
 import { Icon } from "../icons.tsx";
@@ -41,8 +42,8 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
               <label key={k} className="item kv"><span className="k">{l}</span><input id={`ob-${k}`} autoFocus={i === 0} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>
             ))}
           </div>
-          <button className="primary big" id="obNext" onClick={async () => { await api("/api/settings/profile", { method: "PUT", body: f }); setStep(1); }}>下一步</button>
-          <button className="linkBtn" onClick={() => setStep(1)}>跳过</button>
+          <Btn big id="obNext" onClick={async () => { await api("/api/settings/profile", { method: "PUT", body: f }); setStep(1); }}>下一步</Btn>
+          <Btn kind="link" onClick={() => setStep(1)}>跳过</Btn>
         </div>
       </div>
     );
@@ -75,13 +76,13 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
         </div>
         <div className="group">
           <div className="field">
-            <input type="password" id="obKey" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={ready(p) ? "已保存，可直接完成" : `${p.label} 的密钥`} />
+            <Input type="password" id="obKey" autoComplete="off" value={key} onChange={setKey} classNames={{ field: "bg-card" }} placeholder={ready(p) ? "已保存，可直接完成" : `${p.label} 的密钥`} />
             <span className="muted small">{p.hint}</span>
           </div>
         </div>
         {m && <span className={`msg ${m.ok ? "ok" : "err"}`}>{m.text}</span>}
-        <button className="primary big" id="obGo" disabled={busy} onClick={go}>{ready(p) && S.model.provider === pick && !key ? "完成" : "保存并试用"}</button>
-        <button className="linkBtn" id="obSkip" onClick={finish}>以后再说</button>
+        <Btn big id="obGo" disabled={busy} onClick={go}>{ready(p) && S.model.provider === pick && !key ? "完成" : "保存并试用"}</Btn>
+        <Btn kind="link" id="obSkip" onClick={finish}>以后再说</Btn>
       </div>
     </div>
   );

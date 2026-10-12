@@ -1,14 +1,13 @@
 // The slim bar at the top of the main pane: sidebar toggle (when the sidebar is hidden or on phones), title, actions.
 import type { ReactNode } from "react";
-import { Button } from "react-aria-components";
-import { Icon } from "../icons.tsx";
+import { IconBtn } from "./kit.tsx";
 import { useShell } from "../store.tsx";
 
 export function TopBar({ title, sub, onSub, className = "", lead, children }: { title: ReactNode; sub?: string; onSub?: () => void; className?: string; lead?: ReactNode; children?: ReactNode }) {
   const { toggleSide } = useShell();
   return (
     <header className={`topbar ${className}`}>
-      <Button className="icon tbSide" aria-label="列表" data-tip="列表" onPress={toggleSide}><Icon name="sidebar" size={18} /></Button>
+      <IconBtn className="tbSide" icon="sidebar" label="列表" onClick={toggleSide} />
       {lead}
       <div className="tbTitle">
         <h1>{title}</h1>

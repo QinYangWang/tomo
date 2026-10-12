@@ -1,12 +1,11 @@
 // Projects: each one is its own thread with its own memory. The sidebar lists them; the top bar names the open one.
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Button, Menu, MenuItem, MenuTrigger, Popover } from "react-aria-components";
 import { api, enc } from "../api.ts";
 import { ChatPane } from "../components/ChatPane.tsx";
+import { ActionMenu, Btn, IconBtn } from "../components/kit.tsx";
 import { Sheet } from "../components/Sheet.tsx";
 import { TopBar } from "../components/TopBar.tsx";
-import { Icon } from "../icons.tsx";
 import { ago, briefLine, md, pname, UNTITLED } from "../lib.ts";
 import { invalidate, qc, useMemories, useProject, useProjects } from "../queries.ts";
 import { confirmDialog, toast, useShell } from "../store.tsx";
@@ -26,6 +25,7 @@ export function useNewProject() {
 export function RenameBox({ p, className }: { p: Project; className?: string }) {
   const { setRenaming } = useShell();
   const done = useRef(false);
+  const born = useRef(Date.now());
   const finish = async (name: string | null) => {
     if (done.current) return;
     done.current = true;
@@ -41,13 +41,17 @@ export function RenameBox({ p, className }: { p: Project; className?: string }) 
         if (e.key === "Enter" && !e.nativeEvent.isComposing) finish(e.currentTarget.value.trim());
         if (e.key === "Escape") finish(null);
       }}
-      onBlur={(e) => finish(e.currentTarget.value.trim())}
+      onBlur={(e) => {
+        // The menu that opened this hands focus back to its button as it folds away; take it back once.
+        if (Date.now() - born.current < 600) return void setTimeout(() => e.target.focus(), 0);
+        finish(e.currentTarget.value.trim());
+      }}
     />
   );
 }
 
 /** Rename · archive/restore · delete, for the sidebar rows and the project bar. */
-export function ProjectMenu({ p, size = 16, className = "icon sm pMenuBtn" }: { p: Project; size?: number; className?: string }) {
+export function ProjectMenu({ p, size = 16, className = "sm pMenuBtn" }: { p: Project; size?: number; className?: string }) {
   const { setRenaming } = useShell();
   const nav = useNavigate();
   const act = async (a: string) => {
@@ -63,16 +67,16 @@ export function ProjectMenu({ p, size = 16, className = "icon sm pMenuBtn" }: { 
     invalidate("projects", "project");
   };
   return (
-    <MenuTrigger>
-      <Button className={className} aria-label="更多"><Icon name="more" size={size} /></Button>
-      <Popover className="pop" placement="bottom end">
-        <Menu onAction={(k) => act(String(k))}>
-          <MenuItem id="rename" className="mi"><Icon name="edit" size={16} />重命名</MenuItem>
-          <MenuItem id="archive" className="mi"><Icon name={p.status === "active" ? "archive" : "refresh"} size={16} />{p.status === "active" ? "归档" : "恢复"}</MenuItem>
-          <MenuItem id="delete" className="mi danger"><Icon name="trash" size={16} />删除</MenuItem>
-        </Menu>
-      </Popover>
-    </MenuTrigger>
+    <ActionMenu
+      className={className.includes("pMenuBtn") ? "pMenuWrap" : undefined}
+      trigger={<IconBtn className={className} icon="more" label="更多" size={size} tip={false} />}
+      onAction={act}
+      items={[
+        { id: "rename", label: "重命名", icon: "edit" },
+        { id: "archive", label: p.status === "active" ? "归档" : "恢复", icon: p.status === "active" ? "archive" : "refresh" },
+        { id: "delete", label: "删除", icon: "trash", danger: true },
+      ]}
+    />
   );
 }
 
@@ -86,7 +90,7 @@ function RepoBox({ p, open }: { p: Project; open: boolean }) {
     <>
       <div className="gtitle">代码仓库 · {r.storage === "s3" ? "S3" : "本机"}</div>
       <div className="group" id="repoBox">
-        <div className="item"><code className="grow clone">{cmd}</code><Button className="icon" aria-label="复制" data-tip="复制" onPress={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))}><Icon name="copy" size={16} /></Button></div>
+        <div className="item"><code className="grow clone">{cmd}</code><IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))} /></div>
         {r.commits.map((c) => <div key={c.sha} className="item"><span className="grow">{c.subject}<div className="muted small">{c.sha.slice(0, 7)} · {ago(c.at)}</div></span></div>)}
       </div>
       <p className="note" style={{ marginTop: 10 }}>密码就是登录密码；Tomo 改的文件会自动提交</p>
@@ -126,7 +130,7 @@ export function ProjectsView({ id }: { id?: string }) {
         <div className="projEmpty">
           <h2 className="serif">还没有项目</h2>
           <p className="muted">适合要做好几天的事</p>
-          <div className="btns" style={{ justifyContent: "center" }}><button className="primary" onClick={newProject}>新建项目</button></div>
+          <div className="btns" style={{ justifyContent: "center" }}><Btn onClick={newProject}>新建项目</Btn></div>
         </div>
       </div>
     ) : null;
@@ -149,9 +153,9 @@ function ProjectThread({ id }: { id: string }) {
   return (
     <>
       <TopBar className="projBar" title={renaming === p.id ? <RenameBox p={p} /> : pname(p)} sub={line || undefined} onSub={() => setInfo(true)}>
-        <Button className="icon" aria-label="搜索" data-tip="搜索" onPress={() => setSearch({ conv: p.conversation_id!, label: pname(p) })}><Icon name="search" size={18} /></Button>
-        <Button className="icon" aria-label="简介" data-tip="简介" onPress={() => setInfo(true)}><Icon name="info" size={18} /></Button>
-        <ProjectMenu p={p} size={18} className="icon" />
+        <IconBtn icon="search" label="搜索" onClick={() => setSearch({ conv: p.conversation_id!, label: pname(p) })} />
+        <IconBtn icon="info" label="简介" onClick={() => setInfo(true)} />
+        <ProjectMenu p={p} size={18} className="" />
       </TopBar>
       <div id="projSlot">
         <ChatPane conv={p.conversation_id} placeholder="发消息给 Tomo" empty={<div className="projStart"><b>要做什么？</b></div>} onSent={watchTitle} />

@@ -1,4 +1,5 @@
 // The rail's own pages: 定时 (a timeline), 记忆 (a searchable list), 技能 (a card grid). Each has its own layout.
+import { Btn, Input } from "../components/kit.tsx";
 import { useEffect, useState } from "react";
 import { api, enc } from "../api.ts";
 import { TopBar } from "../components/TopBar.tsx";
@@ -27,7 +28,7 @@ export function SchedulesView() {
               <div key={s.id} className="tlRow">
                 <span className="tlWhen">{s.next_run ? when(s.next_run) : "已结束"}</span>
                 <span className="tlBody"><b>{s.title}</b><span className="muted small">{KIND[s.kind] ?? "重复"}</span></span>
-                <button className="dangerBtn" onClick={async () => { await api(`/api/schedules/${enc(s.id)}`, { method: "DELETE" }); toast("已删除"); invalidate("schedules"); }}>删除</button>
+                <Btn kind="danger" onClick={async () => { await api(`/api/schedules/${enc(s.id)}`, { method: "DELETE" }); toast("已删除"); invalidate("schedules"); }}>删除</Btn>
               </div>
             ))}
           </div>
@@ -50,13 +51,13 @@ export function MemoryView() {
       <TopBar title="记忆" />
       <div className="scroll"><div className="page narrow" id="v-tool">
         <Head k="memory" />
-        <input className="searchBox" placeholder="搜索" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="searchBox" placeholder="搜索" value={q} onChange={setQ} leftIcon={<Icon name="search" size={16} />} classNames={{ field: "bg-card", input: "pl-9" }} />
         {list && (list.length ? (
           <div className="group memList">
             {list.map((m) => (
               <div key={m.id} className="item">
                 <span className="grow">{m.content}<div className="muted small">{m.confidence === "inferred" ? "猜的" : "你说的"} · {ago(m.updated_at)}</div></span>
-                <button className="dangerBtn" onClick={async () => { await api(`/api/memories/${m.id}`, { method: "DELETE" }); toast("已忘掉"); invalidate("memories"); }}>忘掉</button>
+                <Btn kind="danger" onClick={async () => { await api(`/api/memories/${m.id}`, { method: "DELETE" }); toast("已忘掉"); invalidate("memories"); }}>忘掉</Btn>
               </div>
             ))}
           </div>

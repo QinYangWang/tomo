@@ -1,4 +1,6 @@
 // Full-text search over the current conversation; picking a hit scrolls to it if it is on screen.
+import { Input } from "./kit.tsx";
+import { Icon } from "../icons.tsx";
 import { useEffect, useState } from "react";
 import { api, enc } from "../api.ts";
 import { esc, when } from "../lib.ts";
@@ -35,7 +37,7 @@ export function SearchSheet() {
   };
   return (
     <Sheet open={!!search} onClose={() => setSearch(null)} title={`搜索「${search?.label ?? ""}」`}>
-      <input className="searchBox" id="hq" autoFocus placeholder="输入要找的字" value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input className="searchBox" id="hq" autoFocus placeholder="输入要找的字" value={q} onChange={setQ} leftIcon={<Icon name="search" size={16} />} classNames={{ field: "bg-card", input: "pl-9" }} />
       {hits && (hits.length ? (
         <div className="group">
           {hits.map((h) => (

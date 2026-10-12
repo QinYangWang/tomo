@@ -1,6 +1,6 @@
 // Settings: the sidebar lists the pages on wide screens; phones get the index list. The top bar's back button walks up.
+import { Btn, Field, IconBtn, Pick, Toggle } from "../components/kit.tsx";
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { Button } from "react-aria-components";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, enc, session } from "../api.ts";
 import { Icon, type IconName } from "../icons.tsx";
@@ -149,18 +149,15 @@ function ChannelForm({ c }: { c: Channel }) {
         <div className="item">
           <span className="logo"><Icon name={c.id} /></span>
           <span className="grow">{meta.label} <span className={`badge ${cls}`}>{st}</span></span>
-          {has && <input type="checkbox" className={`toggle ${on && c.status.state !== "connected" ? "pending" : ""}`} checked={on} aria-label={`开关 ${meta.label}`} onChange={(e) => save(e.target.checked, false)} />}
+          {has && <Toggle className={on && c.status.state !== "connected" ? "pending" : ""} checked={on} label={`开关 ${meta.label}`} onChange={(v) => save(v, false)} />}
         </div>
         {Object.entries(meta.fields).map(([f, label]) => {
           const v = c.fields[f] ?? { set: false }, now = v.last4 ? `已保存 ····${v.last4}` : v.fromEnv ? "配置文件里已有" : "";
           return (
-            <div key={f} className="field">
-              <label>{label} {now && <span className="badge">{now}</span>}</label>
-              <input type="password" autoComplete="off" placeholder={now ? "留空就不改" : "粘贴到这里"} value={vals[f] ?? ""} onChange={(e) => setVals({ ...vals, [f]: e.target.value })} />
-            </div>
+            <Field key={f} label={<>{label} {now && <span className="badge">{now}</span>}</>} type="password" autoComplete="off" placeholder={now ? "留空就不改" : "粘贴到这里"} value={vals[f] ?? ""} onChange={(v) => setVals({ ...vals, [f]: v })} />
           );
         })}
-        <div className="field"><div className="btns"><button className="primary" disabled={busy} onClick={() => save(true, true)}>连接</button><Msg m={m} /></div></div>
+        <div className="field"><div className="btns"><Btn disabled={busy} onClick={() => save(true, true)}>连接</Btn><Msg m={m} /></div></div>
       </div>
       <div className="gtitle">怎么获取</div>
       <div className="group"><div className="field"><ol className="steps">{meta.steps.map((s) => <li key={s}>{s}</li>)}</ol></div></div>
@@ -198,14 +195,10 @@ function ProviderForm({ p, S }: { p: Provider; S: Settings }) {
         <div className="item">
           <Mono label={p.label} />
           <span className="grow">{p.label} {p.key.set ? <span className="badge ok">已添加</span> : p.fromEnv ? <span className="badge ok">配置文件里已有</span> : <span className="badge">未添加</span>}</span>
-          {p.key.set && <button className="dangerBtn" onClick={del}>删除</button>}
+          {p.key.set && <Btn kind="danger" onClick={del}>删除</Btn>}
         </div>
-        <div className="field">
-          <label>密钥（API Key）</label>
-          <input type="password" autoComplete="off" placeholder={p.key.set ? `已保存 ····${p.key.last4}，粘贴新的可替换` : "粘贴到这里"} value={key} onChange={(e) => setKey(e.target.value)} />
-          <span className="muted small">{p.hint}</span>
-        </div>
-        <div className="field"><div className="btns"><button className="primary" onClick={save}>保存</button><button className="ghost" disabled={!ready(p)} onClick={test}>试一下</button><Msg m={m} /></div></div>
+        <Field label="密钥（API Key）" hint={p.hint} type="password" autoComplete="off" placeholder={p.key.set ? `已保存 ····${p.key.last4}，粘贴新的可替换` : "粘贴到这里"} value={key} onChange={setKey} />
+        <div className="field"><div className="btns"><Btn onClick={save}>保存</Btn><Btn kind="secondary" disabled={!ready(p)} onClick={test}>试一下</Btn><Msg m={m} /></div></div>
       </div>
       <p className="note">加密保存，只显示末 4 位</p>
     </>
@@ -221,8 +214,8 @@ function ModelSelect({ label, value, usable, onChange }: { label: string; value:
     <div className="field">
       <label>{label}</label>
       <div className="row2">
-        <select value={value.provider} onChange={(e) => onChange({ provider: e.target.value, modelId: "" })}>{usable.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
-        <select value={value.modelId} onChange={(e) => onChange({ ...value, modelId: e.target.value })}>{models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+        <Pick value={value.provider} onChange={(v) => onChange({ provider: v, modelId: "" })} options={usable.map((p) => ({ value: p.id, label: p.label }))} label={`${label} · 供应商`} />
+        <Pick value={value.modelId} onChange={(v) => onChange({ ...value, modelId: v })} options={models.map((m) => ({ value: m.id, label: m.name }))} label={`${label} · 模型`} search />
       </div>
     </div>
   );
@@ -264,7 +257,7 @@ function ModelsPage() {
         <div className="group">
           <ModelSelect label="聊天" value={main} usable={usable} onChange={setMain} />
           <ModelSelect label="后台（整理记忆、更新面板）" value={small} usable={usable} onChange={setSmall} />
-          <div className="field"><div className="btns"><button className="primary" onClick={save}>保存</button><Msg m={m} /></div></div>
+          <div className="field"><div className="btns"><Btn onClick={save}>保存</Btn><Msg m={m} /></div></div>
         </div>
       ) : <p className="note">先添加一家服务商</p>}
     </>
@@ -318,7 +311,7 @@ function StoragePage() {
           <Icon name="storage" />
           <span className="grow">{st.kind === "s3" ? st.s3?.bucket : "本机"}</span>
           <span className={`badge ${st.kind === "s3" ? "ok" : ""}`}>{st.kind === "s3" ? "S3" : "默认"}</span>
-          {st.kind === "s3" && !st.fromEnv && <button className="dangerBtn" disabled={busy} onClick={() => save(true)}>改回本机</button>}
+          {st.kind === "s3" && !st.fromEnv && <Btn kind="danger" disabled={busy} onClick={() => save(true)}>改回本机</Btn>}
         </div>
       </div>
       <div className="gtitle">存到 S3</div>
@@ -327,7 +320,7 @@ function StoragePage() {
           <label key={k} className="item kv"><span className="k">{label}</span><input name={k} value={vals[k] ?? ""} placeholder={ph} autoComplete="off" onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></label>
         ))}
         <label className="item kv"><span className="k">密钥</span><input name="secret" type="password" value={secret} placeholder={now ? `${now}，留空不改` : "Secret Access Key"} autoComplete="off" onChange={(e) => setSecret(e.target.value)} /></label>
-        <div className="field"><div className="btns"><button className="primary" disabled={busy} onClick={() => save()}>保存</button><button className="ghost" disabled={busy} onClick={test}>试一下</button><Msg m={m} /></div></div>
+        <div className="field"><div className="btns"><Btn disabled={busy} onClick={() => save()}>保存</Btn><Btn kind="secondary" disabled={busy} onClick={test}>试一下</Btn><Msg m={m} /></div></div>
       </div>
       <p className="note">支持 Cloudflare R2、AWS S3、MinIO</p>
     </>
@@ -358,19 +351,19 @@ function BackupPage() {
   return (
     <>
       <div className="group">
-        <label className="item"><Icon name="backup" /><span className="grow">自动备份</span><input type="checkbox" className="toggle" checked={b.enabled} aria-label="自动备份" onChange={(e) => toggle(e.target.checked)} /></label>
+        <div className="item"><Icon name="backup" /><span className="grow">自动备份</span><Toggle checked={b.enabled} label="自动备份" onChange={toggle} /></div>
         <div className="item" id="lastBackup">
           <span className="grow">上次备份<div className="muted small">{last ? (last.ok ? `${when(last.at)} · ${size(last.bytes)}` : `失败：${last.error}`) : "还没有"}</div></span>
           <span className={`badge ${last?.ok ? "ok" : last ? "err" : ""}`}>{b.storage === "s3" ? "S3" : "本机"}</span>
         </div>
-        <div className="field"><div className="btns"><button className="primary" disabled={busy} onClick={run}>立即备份</button><Msg m={m} /></div></div>
+        <div className="field"><div className="btns"><Btn disabled={busy} onClick={run}>立即备份</Btn><Msg m={m} /></div></div>
       </div>
       <p className="note">每天 4 点备份到「存储」里设的位置，保留最近 {b.keep} 份</p>
       <div className="gtitle">恢复码</div>
       <div className="group">
         <div className="item"><code className="grow" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
-          {code ? <Button className="icon" aria-label="复制" data-tip="复制" onPress={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))}><Icon name="copy" size={16} /></Button>
-            : <button className="ghost" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</button>}
+          {code ? <IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))} />
+            : <Btn kind="secondary" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</Btn>}
         </div>
       </div>
       <p className="note">备份是加密的，没有恢复码打不开。请抄下来，存在别处</p>
@@ -423,19 +416,19 @@ function SecurityPage() {
       <div className="gtitle">绑定的账号</div>
       <div className="group">
         {S.owners.length ? S.owners.map((o) => (
-          <div key={o} className="item"><span className="grow"><code>{o}</code></span>{env.has(o) ? <span className="badge">配置文件</span> : <button className="dangerBtn" onClick={async () => { await api(`/api/settings/owners/${enc(o)}`, { method: "DELETE" }); invalidate("settings"); }}>解绑</button>}</div>
+          <div key={o} className="item"><span className="grow"><code>{o}</code></span>{env.has(o) ? <span className="badge">配置文件</span> : <Btn kind="danger" onClick={async () => { await api(`/api/settings/owners/${enc(o)}`, { method: "DELETE" }); invalidate("settings"); }}>解绑</Btn>}</div>
         )) : <div className="item muted">还没有绑定</div>}
         <div className="field">
-          <div className="btns"><button className="ghost" onClick={async () => setCode((await api("/api/settings/pair", { method: "POST" })).code)}>获取绑定码</button></div>
+          <div className="btns"><Btn kind="secondary" onClick={async () => setCode((await api("/api/settings/pair", { method: "POST" })).code)}>获取绑定码</Btn></div>
           {code && <div><div className="code">{code}</div><p className="note" style={{ margin: 0, textAlign: "center" }}>10 分钟内私聊机器人发送 <code>/pair {code}</code></p></div>}
         </div>
       </div>
       <p className="note">绑定后，只有你能私聊 Tomo</p>
       <div className="gtitle">登录密码</div>
       <div className="group">
-        <div className="field"><label>当前密码</label><input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></div>
-        <div className="field"><label>新密码（至少 8 位）</label><input type="password" autoComplete="new-password" value={nxt} onChange={(e) => setNxt(e.target.value)} /></div>
-        <div className="field"><div className="btns"><button className="primary" onClick={change}>修改</button><Msg m={m} /></div></div>
+        <Field label="当前密码" type="password" autoComplete="current-password" value={cur} onChange={setCur} />
+        <Field label="新密码（至少 8 位）" type="password" autoComplete="new-password" value={nxt} onChange={setNxt} />
+        <div className="field"><div className="btns"><Btn onClick={change}>修改</Btn><Msg m={m} /></div></div>
       </div>
       <p className="note">改完后，其他设备要重新登录</p>
     </>
