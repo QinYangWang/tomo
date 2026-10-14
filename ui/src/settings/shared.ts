@@ -3,9 +3,9 @@ import type { IconName } from "../icons.tsx";
 import type { Channel, Provider } from "../types.ts";
 
 export const CH: Record<Channel["id"], { label: string; fields: Record<string, string>; steps: string[] }> = {
-  telegram: { label: "Telegram", fields: { token: "Bot Token" }, steps: ["在 Telegram 里找 @BotFather，发送 /newbot", "按提示起名，把它给的 Token 粘贴到这里"] },
-  discord: { label: "Discord", fields: { token: "Bot Token" }, steps: ["Discord Developer Portal → New Application → Bot → Reset Token", "同一页打开 Message Content Intent", "OAuth2 → URL Generator 勾 bot，用生成的链接把机器人拉进服务器"] },
-  slack: { label: "Slack", fields: { botToken: "Bot Token（xoxb-）", appToken: "App Token（xapp-）" }, steps: ["api.slack.com/apps → Create New App", "打开 Socket Mode，生成 App Token，scope 选 connections:write", "OAuth & Permissions 加 Bot scopes：app_mentions:read chat:write im:history im:read im:write", "Event Subscriptions 订阅 app_mention、message.im；App Home 里允许发消息", "Install to Workspace，复制 Bot Token"] },
+  telegram: { label: "Telegram", fields: { token: "Bot Token" }, steps: ["在 Telegram 里找 @BotFather，发送 /newbot", "按提示起名，把它给的 Token 粘贴到这里", "想让它在群里看懂前面聊了什么：对 @BotFather 发 /setprivacy，选 Disable"] },
+  discord: { label: "Discord", fields: { token: "Bot Token" }, steps: ["Discord Developer Portal → New Application → Bot → Reset Token", "同一页打开 Message Content Intent", "OAuth2 → URL Generator 勾 bot，权限勾 Send Messages 和 Read Message History，用生成的链接把机器人拉进服务器"] },
+  slack: { label: "Slack", fields: { botToken: "Bot Token（xoxb-）", appToken: "App Token（xapp-）" }, steps: ["api.slack.com/apps → Create New App", "打开 Socket Mode，生成 App Token，scope 选 connections:write", "OAuth & Permissions 加 Bot scopes：app_mentions:read chat:write im:history im:read im:write channels:history groups:history users:read（后三个让它看懂前面的讨论）", "Event Subscriptions 订阅 app_mention、message.im；App Home 里允许发消息", "Install to Workspace，复制 Bot Token"] },
 };
 export const STATE: Record<string, [string, string]> = { connected: ["已连接", "ok"], connecting: ["连接中", "warn"], error: ["连不上", "err"], off: ["未连接", ""] };
 export const dotCls = (s: string) => STATE[s]?.[1] ?? "";

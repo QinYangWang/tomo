@@ -5,6 +5,8 @@ import type { Conversation, Memory, Panel, Project, Schedule, Settings, Skill } 
 export const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 5_000, refetchOnWindowFocus: true, retry: false } } });
 
 export const useSettings = () => useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("/api/settings") });
+export type ModelGroup = { provider: string; label: string; models: { id: string; name: string; reasoning: boolean }[] };
+export const useAllModels = () => useQuery({ queryKey: ["models"], queryFn: () => api<ModelGroup[]>("/api/models"), staleTime: 60_000 });
 export const useSchedules = () => useQuery({ queryKey: ["schedules"], queryFn: () => api<Schedule[]>("/api/schedules") });
 export const useSkills = () => useQuery({ queryKey: ["skills"], queryFn: () => api<Skill[]>("/api/skills") });
 export const useConversations = () => useQuery({ queryKey: ["conversations"], queryFn: () => api<Conversation[]>("/api/conversations") });
@@ -23,5 +25,6 @@ export const useProject = (id?: string) =>
 export const useModels = (provider: string) =>
   useQuery({ queryKey: ["models", provider], queryFn: () => api<{ id: string; name: string }[]>(`/api/settings/models?provider=${enc(provider)}`), enabled: !!provider, staleTime: Infinity });
 
-export const invalidate = (...keys: string[]) => Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: [k] })));
+// Settings changes (a provider key added or removed) also change which models the composer offers.
+export const invalidate = (...keys: string[]) => Promise.all((keys.includes("settings") ? [...keys, "models"] : keys).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 export const hasKey = (s?: Settings) => !!s?.providers.some((p) => p.key.set || p.fromEnv);

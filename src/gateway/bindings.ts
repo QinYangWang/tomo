@@ -29,3 +29,13 @@ export const routes = {
     return r ? { platform: r.platform, address: JSON.parse(r.address) } : undefined;
   },
 };
+
+/** Group chats: the last platform message the agent has seen, so context is never sent twice. */
+export const cursors = {
+  get(key: string): string | undefined {
+    return (db.query("SELECT position FROM chat_cursors WHERE key = ?").get(key) as { position: string } | null)?.position;
+  },
+  set(key: string, position: string) {
+    db.run("INSERT OR REPLACE INTO chat_cursors(key, position, updated_at) VALUES (?,?,?)", [key, position, now()]);
+  },
+};

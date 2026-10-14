@@ -37,6 +37,8 @@
  * WebSocket
  *   /ws?conversation=<id>&token=<t>      server -> client: Pi Durable agent events (first a snapshot)
  *                                        client -> server: {"type":"input","text":"..."} | {"type":"abort"}
+ *                                                          | {"type":"configure","model"?:{provider,modelId},"thinkingLevel"?}
+ *   GET    /api/models                          chat models of every provider with a key (composer picker)
  */
 import { watchEvents } from "@earendil-works/pi-durable";
 import { Hono } from "hono";
@@ -152,6 +154,20 @@ export function startHttp(gateway: Gateway) {
   );
 
   app.get("/api/settings/models", (c) => c.json(chatModels(c.req.query("provider") ?? "")));
+  // Every chat model the owner can use right now: providers with a key, for the composer's picker.
+  const NOT_CHAT = /research|image|live|computer|tts|audio|embed|search|batch|transcribe|realtime|moderation/i;
+  app.get("/api/models", (c) =>
+    c.json(
+      PROVIDERS.filter((p) => secrets.has(`provider:${p.id}`) || !!process.env[ENV_KEYS[p.id] ?? ""]).map((p) => ({
+        provider: p.id,
+        label: p.label,
+        models: models
+          .getModels(p.id)
+          .filter((m: any) => !NOT_CHAT.test(m.id))
+          .map((m: any) => ({ id: m.id, name: m.name ?? m.id, reasoning: !!m.reasoning })),
+      })),
+    ),
+  );
 
   app.put("/api/settings/providers/:id", async (c) => {
     const id = c.req.param("id");
@@ -349,6 +365,13 @@ export function startHttp(gateway: Gateway) {
           const msg = JSON.parse(String(e.data));
           if (msg.type === "input" && msg.text) void submitAsOwner(gateway, id, msg.text);
           if (msg.type === "abort") await (await gateway.harness.conversation(cid(id), ctx))?.abort(ctx);
+          // The composer's model picker: this conversation only; the default stays in Settings.
+          if (msg.type === "configure") {
+            const change: Record<string, unknown> = {};
+            if (msg.model?.provider && msg.model?.modelId && models.getModel(msg.model.provider, msg.model.modelId)) change.model = { provider: msg.model.provider, modelId: msg.model.modelId };
+            if (["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(msg.thinkingLevel)) change.thinkingLevel = msg.thinkingLevel;
+            if (Object.keys(change).length) await (await gateway.harness.conversation(cid(id), ctx))?.configure(change as any, ctx);
+          }
         },
         async onClose() {
           await stream?.stop();

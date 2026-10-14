@@ -32,9 +32,11 @@ docker compose up -d --build          # 然后浏览器打开，按上面 1–4 
 
 ## 各平台准备
 
-- **Telegram**：@BotFather 建 bot，拿 token。群里 @ 它或回复它才会响应。
-- **Discord**：Developer Portal 建应用 → Bot，打开 *Message Content Intent*，邀请时勾 `bot` + 发消息权限。
-- **Slack**：建 App → 开 *Socket Mode*（拿 `xapp-` token，scope `connections:write`）→ Bot scopes：`app_mentions:read chat:write im:history im:read im:write` → 订阅事件 `app_mention`、`message.im` → 安装拿 `xoxb-` token。用 Socket Mode，VPS 不需要公网 webhook。
+- **Telegram**：@BotFather 建 bot，拿 token。群里 @ 它或回复它才会响应。想让它看懂之前的讨论，对 @BotFather 发 `/setprivacy` 选 Disable（否则它只看得到 @ 它和回复它的消息）。
+- **Discord**：Developer Portal 建应用 → Bot，打开 *Message Content Intent*，邀请时勾 `bot` + Send Messages + Read Message History（被 @ 时读前面的讨论）。
+- **Slack**：建 App → 开 *Socket Mode*（拿 `xapp-` token，scope `connections:write`）→ Bot scopes：`app_mentions:read chat:write im:history im:read im:write channels:history groups:history users:read`（后三个用来读讨论串和显示名字）→ 订阅事件 `app_mention`、`message.im` → 安装拿 `xoxb-` token。用 Socket Mode，VPS 不需要公网 webhook。
+
+**被 @ 时读上下文**：群里 @Tomo 时，它会先读这个频道或讨论串里自它上次看过之后的消息（第一次最多 20 条，讨论串最多 100 条），再连同你的问题一起处理；同一段话不会读两遍。
 
 ## 目录
 

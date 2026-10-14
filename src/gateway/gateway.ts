@@ -16,8 +16,8 @@ import { fallbackTitle, projects, UNTITLED } from "../app/projects.ts";
 import { afterTurn, beforeTurn } from "../git/repos.ts";
 import { pairingCodes, runtime } from "../app/settings.ts";
 import { cid, ctx, messageText, MetaDoc, roleOf } from "../agent/util.ts";
-import { bindings, routes } from "./bindings.ts";
-import { chunk, type ChannelAdapter, type Inbound } from "./types.ts";
+import { bindings, cursors, routes } from "./bindings.ts";
+import { after, chunk, contextBlock, type ChannelAdapter, type ContextLine, type Inbound } from "./types.ts";
 
 export class Gateway {
   readonly adapters = new Map<string, ChannelAdapter>();
@@ -138,7 +138,9 @@ export class Gateway {
 
     const proj = projects.byConversation(convId);
     if (proj) projects.touch(proj.id);
-    const content = m.isDirect && role === "owner" ? m.text : `[${m.userName} on ${m.platform}] ${m.text}`;
+    const said = m.isDirect && role === "owner" ? m.text : `[${m.userName} on ${m.platform}] ${m.text}`;
+    const earlier = m.isDirect ? "" : await this.groupContext(m, adapter);
+    const content = earlier ? `${earlier}\n\n${said}` : said;
     const conv = (await this.harness.conversation(cid(convId), ctx))!;
     const requestId = `${m.platform}:${m.chatId}:${m.messageId}`;
 
@@ -177,6 +179,27 @@ export class Gateway {
     } finally {
       this.inflight.delete(convId);
     }
+  }
+
+  /**
+   * What was said in a group chat or thread since the agent last saw it, so a mention mid-discussion
+   * arrives with the discussion. Best effort: a platform error or missing permission just means no context.
+   */
+  async groupContext(m: Inbound, adapter = this.adapters.get(m.platform)): Promise<string> {
+    if (!adapter?.context) return m.replyTo ? contextBlock([], m.replyTo) : "";
+    const key = `${m.platform}:chat:${m.chatId}${m.threadId ? `:thread:${m.threadId}` : ""}`;
+    const seen = cursors.get(key);
+    let lines: ContextLine[] = [];
+    try {
+      lines = (await adapter.context(m, seen)).filter((l) => !seen || after(l.id, seen));
+    } catch (e) {
+      console.error(`[${m.platform}] context`, (e as Error).message);
+    }
+    const here = m.position ?? lines.at(-1)?.id;
+    if (here && (!seen || after(here, seen))) cursors.set(key, here);
+    // Slack keys a reply thread by its parent message, and the agent has seen that one already.
+    if (!m.threadId && m.position) cursors.set(`${key}:thread:${m.position}`, m.position);
+    return contextBlock(lines, m.replyTo);
   }
 
   /** The background conversation panels are built in, so their work never shows up in a chat. */

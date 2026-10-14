@@ -90,6 +90,14 @@ const MIGRATIONS: string[] = [
     last_reflected  INTEGER NOT NULL DEFAULT 0
   );
   `,
+  `
+  -- Group chats: the last platform message the agent has already seen, per chat or thread.
+  CREATE TABLE chat_cursors (
+    key        TEXT PRIMARY KEY,
+    position   TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY)");
