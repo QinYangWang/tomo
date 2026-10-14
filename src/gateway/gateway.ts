@@ -23,6 +23,8 @@ export class Gateway {
   readonly adapters = new Map<string, ChannelAdapter>();
   /** Conversations with a run this process is delivering. Later messages steer into it. */
   private inflight = new Map<string, Promise<void>>();
+  /** Strangers already told why a group mention got no answer. */
+  private hinted = new Set<string>();
 
   constructor(readonly agent: Agent) {}
 
@@ -112,7 +114,18 @@ export class Gateway {
     const adapter = this.adapters.get(m.platform);
     const role = this.role(m.platform, m.userId);
     if (role === "stranger") {
-      if (!m.isDirect) return;
+      if (!m.isDirect) {
+        // Silently ignoring a mention looks like a broken bot: say why, once per person per run.
+        console.log(`[gateway] ignored ${m.platform} mention from ${m.userName} (${m.platform}:${m.userId}): not paired or allowed`);
+        if (!this.hinted.has(`${m.platform}:${m.userId}`)) {
+          this.hinted.add(`${m.platform}:${m.userId}`);
+          const paired = runtime.owners().some((o) => o.startsWith(`${m.platform}:`));
+          await adapter?.send(m.address, paired
+            ? "I only answer my owner and people they've allowed here. Ask them to add you in Settings."
+            : "Not paired yet. Open Settings on the web, get a pairing code, then DM me /pair <code>. After that I'll answer here.");
+        }
+        return;
+      }
       // Pairing: the owner gets a one-time code on the web settings page and sends "/pair <code>" here.
       const pair = m.text.trim().match(/^\/pair\s+(\d{6})$/);
       if (pair && pairingCodes.redeem(pair[1]!)) {

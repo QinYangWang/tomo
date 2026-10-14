@@ -31,7 +31,9 @@ export class SlackAdapter implements ChannelAdapter {
     this.botUserId = auth.user_id as string;
     this.botId = (auth.bot_id as string) ?? "";
 
+    console.log(`[slack] connected as @${auth.user} (${this.botUserId}) in ${auth.team}`);
     const forward = async (e: any, isDirect: boolean) => {
+      console.log(`[slack] ${isDirect ? "dm" : "mention"} from ${e.user} in ${e.channel}${e.subtype ? ` (subtype ${e.subtype}, skipped)` : ""}`);
       if (e.bot_id || e.subtype) return;
       // In channels, a reply inside a thread stays in that thread; a top-level mention starts one.
       const threadTs = e.thread_ts ?? (isDirect ? undefined : e.ts);
