@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
@@ -38,7 +38,11 @@ type TabBarItemProps = Omit<useRender.ComponentProps<"button">, "children"> & {
   badge?: number | boolean
 }
 
-/** One destination. Pass your router's link with `render={<Link href="…" />}`. */
+/**
+ * One destination. Pass your router's link with `render={<Link href="…" />}`. The item has no
+ * corners of its own (it fills the bar edge to edge, often inside a rounded screen); hover, press
+ * and the keyboard focus ring all sit on the round icon pill.
+ */
 function TabBarItem({ icon, label, active = false, badge, render, className, ...props }: TabBarItemProps) {
   const { labels } = useLocale()
   const showBadge = badge !== undefined && badge !== false && badge !== 0
@@ -50,14 +54,14 @@ function TabBarItem({ icon, label, active = false, badge, render, className, ...
         type: render ? undefined : "button",
         "aria-current": active ? "page" : undefined,
         className: cn(
-          "group/tab flex h-14 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg text-muted-foreground outline-none transition-colors duration-150 select-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset data-active:text-foreground [-webkit-tap-highlight-color:transparent]",
+          "group/tab flex h-14 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 text-muted-foreground outline-none transition-colors duration-150 select-none data-active:text-foreground [-webkit-tap-highlight-color:transparent]",
           className
         ),
         children: (
           <>
             <span
               data-slot="tab-bar-icon"
-              className="relative flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-150 group-hover/tab:bg-secondary group-active/tab:bg-foreground/10 [&_svg]:size-5 [&_svg]:shrink-0"
+              className="relative flex h-7 w-12 items-center justify-center rounded-full transition-[box-shadow,background-color] duration-150 group-hover/tab:bg-secondary group-focus-visible/tab:ring-2 group-focus-visible/tab:ring-ring/50 group-active/tab:bg-foreground/10 [&_svg]:size-5 [&_svg]:shrink-0"
             >
               {icon}
               {showBadge && (

@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import * as React from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
@@ -285,7 +285,7 @@ function MessageScroller({
                 transition={reduce ? { duration: 0.12 } : { type: "spring", stiffness: 520, damping: 34 }}
                 className={cn(
                   "absolute bottom-3 left-1/2 z-10 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-popover pr-3 pl-2.5 text-ui-sm font-medium text-popover-foreground shadow-surface transition-[background-color,color,scale] duration-150 ease-out outline-none select-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-                  hasNew && "bg-primary text-primary-foreground shadow-primary hover:bg-primary/90 hover:text-primary-foreground",
+                  hasNew && "bg-primary text-primary-foreground shadow-primary hover:bg-primary-hover hover:text-primary-foreground",
                   "data-[variant=icon]:size-8 data-[variant=icon]:justify-center data-[variant=icon]:rounded-full data-[variant=icon]:p-0"
                 )}
                 style={{ x: "-50%" }}

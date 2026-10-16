@@ -4,7 +4,8 @@
  * theme moved on, and says how to fix each finding.
  *
  *   node scripts/qinyang-upgrade-check.mjs          report only (exit code 1 when something needs fixing)
- *   node scripts/qinyang-upgrade-check.mjs --fix    also clean the stylesheet (stale tokens, broken and duplicate rules)
+ *   node scripts/qinyang-upgrade-check.mjs --fix    also clean the stylesheet (stale tokens, broken and duplicate rules),
+ *                                                   then scan again and report only what is left (exit code 1 if errors remain)
  *
  * The CLI merges the theme into your stylesheet: it adds and updates variables but never
  * deletes one, so tokens a release removed stay behind. Source findings are never edited.
@@ -32,7 +33,9 @@ const RAMP = /^[ \t]*--(?:color-)?accent-(?:50|[1-9]00|950):[^;]*;[ \t]*\n/gm
 const UNDASHED =
   /^[ \t]*(?:primary|primary-[a-z-]+|ring|destructive(?:-[a-z]+)?|success(?:-[a-z]+)?|warning(?:-[a-z]+)?|chart-[1-8]|shadow-lg):[^;]*;[ \t]*\n/gm
 
-function checkCss(file) {
+const fixedFiles = []
+
+function checkCss(file, fix) {
   const abs = path.join(root, file)
   let css = fs.readFileSync(abs, "utf8")
   const before = css
@@ -101,7 +104,7 @@ function checkCss(file) {
 
   if (fix && css !== before) {
     fs.writeFileSync(abs, css)
-    console.log(`fixed ${file}`)
+    fixedFiles.push(file)
   }
 }
 
@@ -147,19 +150,29 @@ const RULES = [
   },
 ]
 
-for (const file of sourceFiles) {
-  const src = fs.readFileSync(file, "utf8")
-  for (const rule of RULES) {
-    for (const m of src.matchAll(rule.re)) {
-      const line = src.slice(0, m.index).split("\n").length
-      note(rule.level, `${path.relative(root, file)}:${line}`, rule.message, rule.hint)
+/** One pass over the source and the stylesheet. With `apply`, the stylesheet fixes are written. */
+function scan(apply) {
+  findings.length = 0
+  for (const file of sourceFiles) {
+    const src = fs.readFileSync(file, "utf8")
+    for (const rule of RULES) {
+      for (const m of src.matchAll(rule.re)) {
+        const line = src.slice(0, m.index).split("\n").length
+        note(rule.level, `${path.relative(root, file)}:${line}`, rule.message, rule.hint)
+      }
     }
   }
+  const css = cssPath()
+  if (css) checkCss(css, apply)
+  else note("error", "components.json", "no global stylesheet found", "Run this from the project root.")
 }
 
-const css = cssPath()
-if (css) checkCss(css)
-else note("error", "components.json", "no global stylesheet found", "Run this from the project root.")
+// --fix: fix, then scan the result again so the report lists only what is left.
+if (fix) {
+  scan(true)
+  for (const file of fixedFiles) console.log(`fixed ${file}`)
+}
+scan(false)
 
 /* ───────────── report ───────────── */
 
@@ -167,5 +180,6 @@ const order = { error: 0, warn: 1, info: 2 }
 findings.sort((a, b) => order[a.level] - order[b.level])
 for (const f of findings) console.log(`${f.level.padEnd(5)} ${f.where}  ${f.message}\n      ${f.hint}`)
 const errors = findings.filter((f) => f.level === "error").length
-console.log(findings.length ? `\n${errors} to fix, ${findings.length - errors} to review.` : "Nothing left over from earlier versions.")
-process.exit(errors && !fix ? 1 : 0)
+const lead = fix ? "Left after --fix: " : ""
+console.log(findings.length ? `\n${lead}${errors} to fix, ${findings.length - errors} to review.` : "Nothing left over from earlier versions.")
+process.exit(errors ? 1 : 0)

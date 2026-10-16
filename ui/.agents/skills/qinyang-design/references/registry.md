@@ -38,7 +38,7 @@ After a theme update:
 npx shadcn@latest add @qinyang/theme --overwrite
 npx shadcn@latest add @qinyang/upgrade-check
 node scripts/qinyang-upgrade-check.mjs          # report; exit 1 when something needs fixing
-node scripts/qinyang-upgrade-check.mjs --fix    # also cleans the stylesheet
+node scripts/qinyang-upgrade-check.mjs --fix    # cleans the stylesheet, then reports only what is left
 ```
 
 It finds the removed accent ramp, broken wide-gamut overrides, `@property` rules left by theme 2.2 and earlier
