@@ -1,8 +1,11 @@
+"use client"
+
 import * as React from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { ArrowDownIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/ui/locale-provider"
 
 type MessageScrollerContextValue = {
   /** True while the viewport is pinned to the newest content. */
@@ -69,8 +72,8 @@ function MessageScroller({
   follow = true,
   showJumpButton = true,
   jumpButton = "pill",
-  jumpLabel = "Jump to latest",
-  newLabel = "New messages",
+  jumpLabel: jumpLabelProp,
+  newLabel: newLabelProp,
   viewportClassName,
   contentClassName,
   onLiveEdgeChange,
@@ -80,6 +83,9 @@ function MessageScroller({
   children,
   ...props
 }: MessageScrollerProps) {
+  const { labels } = useLocale()
+  const newLabel = newLabelProp ?? labels.newMessages
+  const jumpLabel = jumpLabelProp ?? labels.jumpToLatest
   const reduce = useReducedMotion() ?? false
   const viewportRef = React.useRef<HTMLDivElement>(null)
   const contentRef = React.useRef<HTMLDivElement>(null)

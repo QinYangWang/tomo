@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { Field as FieldPrimitive } from "@base-ui/react/field"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"

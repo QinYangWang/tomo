@@ -4,6 +4,7 @@ import { Toast as ToastPrimitive } from "@base-ui/react/toast"
 
 import { CheckCircleIcon, InfoIcon, LoaderIcon, WarningIcon, XCircleIcon, XIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/ui/locale-provider"
 
 /** Wrap your app once. Renders the stacked toast viewport at the bottom end corner (bottom-left in right-to-left). */
 function ToastProvider({ children, limit = 3, timeout = 5000, ...props }: ToastPrimitive.Provider.Props) {
@@ -33,6 +34,7 @@ const typeIcon: Record<string, React.ReactNode> = {
 }
 
 function ToastList() {
+  const { labels } = useLocale()
   const { toasts } = ToastPrimitive.useToastManager()
   // Swipe away toward the edge the viewport sits on.
   const rtl = useDirection() === "rtl"
@@ -67,7 +69,7 @@ function ToastList() {
           )}
         </div>
         <ToastPrimitive.Close
-          aria-label="Close"
+          aria-label={labels.close}
           className="absolute top-3 end-3 inline-flex size-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&_svg]:!size-3.5"
         >
           <XIcon />

@@ -1,4 +1,4 @@
-// The rail's own pages: 定时 (upcoming runs), 记忆 (a searchable list), 技能 (a card grid).
+// The rail's own pages: 定时 (a timeline of upcoming runs), 记忆 (a searchable list), 技能 (a card grid).
 import { useEffect, useState } from "react";
 import { BoltIcon, CalendarDaysIcon, LightbulbIcon, SearchIcon } from "@/components/icons";
 import { Button } from "@/ui/button";
@@ -7,6 +7,7 @@ import { EmptyState, EmptyStateDescription, EmptyStateIcon, EmptyStateTitle } fr
 import { IconChip } from "@/ui/icon-chip";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
 import { SettingsGroup, SettingsRow, SettingsRowControl, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
+import { Timeline, TimelineDescription, TimelineItem, TimelineTitle } from "@/ui/timeline";
 import { api, enc } from "../api.ts";
 import { Head, Page } from "../components/parts.tsx";
 import { TopBar } from "../components/TopBar.tsx";
@@ -28,6 +29,12 @@ function Empty({ icon, title, sub }: { icon: React.ReactNode; title: string; sub
 }
 
 const KIND: Record<string, string> = { once: "一次", interval: "重复", daily: "每天", cron: "重复" };
+/** The next run as a time ("08:00") and its day ("今天", "明天", "10月20日"). */
+const slot = (ms: number | null) => {
+  if (!ms) return { time: "已结束", day: undefined };
+  const [day, time] = when(ms).split(" ");
+  return { time, day };
+};
 export function SchedulesView() {
   const list = useSchedules().data;
   return (
@@ -36,19 +43,20 @@ export function SchedulesView() {
       <Page narrow id="v-tool">
         <ToolHead k="schedules" />
         {list && (list.length ? (
-          <SettingsGroup id="schedules">
-            {list.map((s) => (
-              <SettingsRow key={s.id} data-schedule={s.id}>
-                <SettingsRowText>
-                  <SettingsRowTitle>{s.title}</SettingsRowTitle>
-                  <SettingsRowDescription className="tabular-nums">{s.next_run ? when(s.next_run) : "已结束"} · {KIND[s.kind] ?? "重复"}</SettingsRowDescription>
-                </SettingsRowText>
-                <SettingsRowControl>
-                  <Button variant="ghost" size="sm" onClick={async () => { await api(`/api/schedules/${enc(s.id)}`, { method: "DELETE" }); toast("已删除"); invalidate("schedules"); }}>删除</Button>
-                </SettingsRowControl>
-              </SettingsRow>
-            ))}
-          </SettingsGroup>
+          <Timeline id="schedules">
+            {list.map((s, i) => {
+              const { time, day } = slot(s.next_run);
+              return (
+                <TimelineItem
+                  key={s.id} data-schedule={s.id} time={time} timeDetail={day} tone={i === 0 && s.next_run ? "primary" : "default"}
+                  action={<Button variant="ghost" size="xs" onClick={async () => { await api(`/api/schedules/${enc(s.id)}`, { method: "DELETE" }); toast("已删除"); invalidate("schedules"); }}>删除</Button>}
+                >
+                  <TimelineTitle>{s.title}</TimelineTitle>
+                  <TimelineDescription>{KIND[s.kind] ?? "重复"}</TimelineDescription>
+                </TimelineItem>
+              );
+            })}
+          </Timeline>
         ) : <Empty icon={<CalendarDaysIcon />} title="还没有定时" sub="在对话里说「每天 8 点提醒我…」" />)}
       </Page>
     </>

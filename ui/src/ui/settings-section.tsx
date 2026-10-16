@@ -1,7 +1,10 @@
+"use client"
+
 import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
+import { ChevronRightIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 /*
@@ -64,22 +67,59 @@ function SettingsGroup({
   )
 }
 
-/** One setting. Wraps the control under the text below `sm`. A `<label>` via `render` makes the whole row toggle its control. */
-function SettingsRow({ className, render, ...props }: useRender.ComponentProps<"div">) {
-  return useRender({
-    defaultTagName: "div",
+type SettingsRowProps = useRender.ComponentProps<"div"> & {
+  /**
+   * The whole row is one control (opens a page, a link, a dialog): hover and press fill, focus ring,
+   * a trailing chevron. Renders a `<button>` unless `render` gives another element (a router link).
+   */
+  interactive?: boolean
+  /** Muted text before the chevron, such as the current value ("English", "3 connected"). */
+  detail?: React.ReactNode
+  /** Trailing chevron on an interactive row. */
+  chevron?: boolean
+}
+
+/**
+ * One setting. Wraps the control under the text below `sm`. A `<label>` via `render` makes the
+ * whole row toggle its control; `interactive` makes the row itself the control.
+ */
+function SettingsRow({ className, render, interactive = false, detail, chevron = true, children, ...props }: SettingsRowProps) {
+  const element = useRender({
+    defaultTagName: interactive ? ("button" as "div") : "div",
     render,
     props: mergeProps<"div">(
       {
+        ...(interactive && !render ? ({ type: "button" } as object) : null),
         className: cn(
           "flex min-h-14 flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 not-first:border-t not-first:border-border",
+          interactive &&
+            "w-full cursor-pointer flex-nowrap gap-x-3 text-start text-inherit outline-none transition-colors duration-150 hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset active:bg-foreground/8 [-webkit-tap-highlight-color:transparent]",
           className
+        ),
+        children: interactive ? (
+          <>
+            {children}
+            {detail != null && detail !== false && (
+              <span data-slot="settings-row-detail" className="min-w-0 shrink truncate text-ui text-muted-foreground">
+                {detail}
+              </span>
+            )}
+            {chevron && <ChevronRightIcon aria-hidden data-slot="settings-row-chevron" className="size-4 shrink-0 text-muted-foreground rtl:rotate-180" />}
+          </>
+        ) : (
+          children
         ),
       },
       props
     ),
-    state: { slot: "settings-row" },
+    state: { slot: "settings-row", interactive },
   })
+  return element
+}
+
+/** An interactive `SettingsRow` that renders a link by default. Pass `render={<Link href="…" />}` for a router link. */
+function SettingsRowLink({ render, ...props }: Omit<SettingsRowProps, "interactive"> & { href?: string }) {
+  return <SettingsRow interactive render={render ?? <a />} {...props} />
 }
 
 function SettingsRowText({ className, ...props }: React.ComponentProps<"div">) {
@@ -175,6 +215,7 @@ export {
   SettingsSectionDescription,
   SettingsGroup,
   SettingsRow,
+  SettingsRowLink,
   SettingsRowText,
   SettingsRowTitle,
   SettingsRowDescription,
@@ -184,4 +225,4 @@ export {
   SettingsNav,
   SettingsNavItem,
 }
-export type { SettingsNavItemProps }
+export type { SettingsNavItemProps, SettingsRowProps }

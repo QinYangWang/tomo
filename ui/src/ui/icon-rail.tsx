@@ -1,7 +1,10 @@
+"use client"
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipKbd, TooltipTrigger } from "@/ui/tooltip"
+import { useLocale } from "@/ui/locale-provider"
 
 type RailOrientation = "vertical" | "horizontal"
 type RailSide = "right" | "left" | "top" | "bottom"
@@ -56,6 +59,7 @@ type IconRailItemProps = Omit<React.ComponentProps<"button">, "children"> & {
 }
 
 function IconRailItem({ label, icon, shortcut, active = false, badge, render, className, ...props }: IconRailItemProps) {
+  const { labels } = useLocale()
   const { side } = React.useContext(RailContext)
   const classes = cn(
     "relative flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-inner text-muted-foreground outline-none transition-colors duration-150 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-active:bg-foreground/6 data-active:text-foreground [&_svg]:size-4.5 [&_svg]:shrink-0",
@@ -72,7 +76,7 @@ function IconRailItem({ label, icon, shortcut, active = false, badge, render, cl
             badge === true ? "size-2" : "h-3.5 min-w-3.5 px-1 text-ui-2xs font-semibold tabular-nums"
           )}
         >
-          {badge === true ? <span className="sr-only">New activity</span> : badge > 99 ? "99+" : badge}
+          {badge === true ? <span className="sr-only">{labels.newActivity}</span> : badge > 99 ? "99+" : badge}
         </span>
       )}
     </>

@@ -5,7 +5,7 @@
 Add the namespace to `components.json`, then install the theme and any item:
 
 ```json
-{ "registries": { "@qinyang": "https://qinyangwang.github.io/ui/r/{name}.json" } }
+{ "registries": { "@qinyang": "http://127.0.0.1:8833/r/{name}.json" } }
 ```
 
 ```bash

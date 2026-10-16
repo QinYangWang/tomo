@@ -10,7 +10,7 @@ import { EffortPicker, ModelPicker } from "@/ui/model-picker";
 import { ResponseMarkdown } from "@/ui/streaming-response";
 import { Terminal, TerminalOutput } from "@/ui/terminal-view";
 import { TextShimmer } from "@/ui/text-shimmer";
-import { WorkSummary, WorkSummaryStep, type WorkStepKind } from "@/ui/work-summary";
+import { WorkSummary, WorkSummaryStep, WorkSummaryThought, type WorkStepKind } from "@/ui/work-summary";
 import { cn } from "@/lib/utils";
 import { toolLabel } from "../lib.ts";
 import { useAllModels, useSettings } from "../queries.ts";
@@ -33,8 +33,8 @@ function StepRow({ step }: { step: Step }) {
   const status = step.status === "active" ? "in_progress" : step.status === "error" ? "failed" : "completed";
   const out = step.output?.trim();
   return (
-    <WorkSummaryStep className="step" kind={KIND[step.name] ?? "other"} status={status} title={name} detail={hint}>
-      {out ? <Terminal variant="embedded"><TerminalOutput text={out} className="max-h-32" /></Terminal> : null}
+    <WorkSummaryStep className="step" kind={KIND[step.name] ?? "other"} status={status} title={name} detail={hint} collapsible defaultOpen={step.status === "error"}>
+      {out ? <Terminal variant="embedded"><TerminalOutput text={out} className="max-h-60" /></Terminal> : null}
     </WorkSummaryStep>
   );
 }
@@ -50,7 +50,7 @@ function WorkBlock({ item }: { item: Work }) {
   const label = item.done ? `${parts || "处理"} · ${secs(took)}` : current ? `正在${toolLabel(current.name, current.args).split(" · ")[0]}…` : item.thinking ? "正在思考…" : "正在处理…";
   return (
     <WorkSummary className={cn("work", item.done && "done")} running={!item.done} startedAt={item.started} label={label} open={open} onOpenChange={setUserOpen}>
-      {item.thinking.trim() && <li className="thinking py-0.5 text-ui text-pretty whitespace-pre-wrap text-muted-foreground italic">{item.thinking.trim()}</li>}
+      {item.thinking.trim() && <WorkSummaryThought className="thinking" title="思考" defaultOpen={!item.done}>{item.thinking.trim()}</WorkSummaryThought>}
       {item.steps.map((x) => <StepRow key={x.id} step={x} />)}
     </WorkSummary>
   );
@@ -97,10 +97,10 @@ function Pickers({ agent, busy, onChange }: { agent: AgentState; busy: boolean; 
   };
   return (
     <>
-      {/* TODO(qinyang-gap): ModelPicker has no search field; OpenRouter lists hundreds of models (typeahead only). */}
       <ModelPicker
-        className="cChip" label="模型" heading={groups.length ? undefined : "还没有可用的模型，先去设置里填一个密钥。"} placeholder="选择模型" icon={<BotIcon />}
+        className="cChip" heading={groups.length ? undefined : "还没有可用的模型，先去设置里填一个密钥。"} placeholder="选择模型" icon={<BotIcon />}
         models={models} value={key(cur) || undefined} onValueChange={pick} disabled={busy}
+        searchable searchPlaceholder="搜索模型" emptyLabel="没有这个模型" maxPerGroup={8}
       />
       {info?.reasoning && (
         <EffortPicker label="思考" heading="思考" levels={LEVELS} value={agent.thinkingLevel ?? "off"} onValueChange={(v) => onChange({ thinkingLevel: v })} disabled={busy} align="end" />
@@ -149,7 +149,7 @@ export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; 
   const waiting = busy && (!tail || tail.k === "me" || tail.k === "error");
   return (
     <div id="chatPane" data-busy={busy} className="flex min-h-0 flex-1 flex-col">
-      <MessageScroller id="thread" className="min-h-0 flex-1" jumpButton="icon" jumpLabel="回到最新" newLabel="有新消息" contentClassName="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-6 pb-8 md:px-7">
+      <MessageScroller id="thread" className="min-h-0 flex-1" jumpButton="icon" contentClassName="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-6 pb-8 md:px-7">
         <div id="log" className="flex flex-col gap-5">
           {loaded && !items.length && !busy && empty}
           {items.map((it, i) => <Row key={i} it={it} last={i === items.length - 1 && !busy} retry={() => lastUser && send(lastUser)} />)}
@@ -157,9 +157,9 @@ export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; 
         </div>
       </MessageScroller>
       <div id="composer" className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3 md:px-7 md:pb-5">
-        {/* TODO(qinyang-gap): AgentComposer always shows an attach button and has fixed English labels (Send, Stop, Attach files, Message). */}
         <AgentComposer
-          ref={input} value={text} onValueChange={setText} onSubmit={submit} placeholder={placeholder} aria-label={placeholder}
+          ref={input} value={text} onValueChange={setText} onSubmit={submit} placeholder={placeholder}
+          inputProps={{ id: "msgInput", name: "message", enterKeyHint: "send" }}
           busy={busy} onStop={stop}
           toolbarEnd={loaded ? <Pickers agent={agent} busy={busy} onChange={configure} /> : undefined}
         />

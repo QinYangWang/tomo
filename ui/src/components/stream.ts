@@ -79,7 +79,7 @@ export function useStream(conv: string | undefined) {
           push({ k: "ai", text: t, id: String(e.id) });
         }
         failure(e.model?.[0]);
-      } else if (e.kind === "pi.tool") {
+      } else if (e.kind === "pi.tool-result") {
         const m = e.model?.[0];
         const x = m && stepFor(m.toolCallId);
         if (x) Object.assign(x, { status: m.isError ? "error" : "done", output: resultText(e.model) });

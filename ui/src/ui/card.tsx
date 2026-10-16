@@ -1,4 +1,6 @@
 import * as React from "react"
+import { mergeProps } from "@base-ui/react/merge-props"
+import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -11,6 +13,8 @@ import { cn } from "@/lib/utils"
  * `outline` is a hairline with no fill or shadow (cards on a card), `ghost` is
  * spacing only (groups that need the card rhythm without a surface).
  * `size` sets the shared spacing (sm 12px, default 16px, lg 24px) that every part reads.
+ * `interactive` is for a card that is one link or button as a whole (pass `render={<a href="…" />}`):
+ * the shadow steps up on hover and keyboard focus shows the ring.
  */
 const cardVariants = cva(
   "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl py-(--card-spacing) text-ui text-card-foreground",
@@ -27,23 +31,31 @@ const cardVariants = cva(
         default: "[--card-spacing:--spacing(4)]",
         lg: "[--card-spacing:--spacing(6)]",
       },
+      interactive: {
+        true: "cursor-pointer outline-none transition-[box-shadow,background-color] duration-150 hover:shadow-raised-hover focus-visible:ring-2 focus-visible:ring-ring/50",
+        false: "",
+      },
     },
-    defaultVariants: { variant: "default", size: "default" },
+    defaultVariants: { variant: "default", size: "default", interactive: false },
   }
 )
 
-type CardProps = React.ComponentProps<"div"> & VariantProps<typeof cardVariants>
+type CardProps = useRender.ComponentProps<"div"> & VariantProps<typeof cardVariants>
 
-function Card({ className, size = "default", variant = "default", ...props }: CardProps) {
-  return (
-    <div
-      data-slot="card"
-      data-size={size}
-      data-variant={variant}
-      className={cn(cardVariants({ size, variant }), className)}
-      {...props}
-    />
-  )
+function Card({ className, size = "default", variant = "default", interactive = false, render, ...props }: CardProps) {
+  return useRender({
+    defaultTagName: "div",
+    render,
+    props: mergeProps<"div">(
+      {
+        "data-size": size ?? undefined,
+        "data-variant": variant ?? undefined,
+        className: cn(cardVariants({ size, variant, interactive }), className),
+      } as React.ComponentProps<"div">,
+      props
+    ),
+    state: { slot: "card" },
+  })
 }
 
 /** The raised inner surface of an inset Card. */

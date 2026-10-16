@@ -1,9 +1,12 @@
+"use client"
+
 import * as React from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { ArrowUpIcon, FileIcon, MicIcon, PlusIcon, StopIcon, TerminalIcon, XIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { Button } from "@/ui/button"
+import { useLocale } from "@/ui/locale-provider"
 import { Tooltip, TooltipContent, TooltipKbd, TooltipTrigger } from "@/ui/tooltip"
 
 type ComposerMention = {
@@ -52,6 +55,21 @@ function score(query: string, text: string) {
   return i === q.length ? 0.5 : 0
 }
 
+/** Visible and accessible strings of the composer. Unset keys come from `LocaleProvider` (English by default). */
+type AgentComposerLabels = {
+  /** Attach button name and tooltip. */
+  attach?: string
+  send?: string
+  stop?: string
+  /** Accessible name of the input. */
+  input?: string
+  dictate?: string
+  /** Heading and list name of the `@` suggestions. */
+  mentions?: string
+  /** Heading and list name of the `/` suggestions. */
+  commands?: string
+}
+
 type AgentComposerProps = Omit<React.ComponentProps<"form">, "onSubmit" | "children"> & {
   placeholder?: string
   /** Controlled text. */
@@ -67,8 +85,13 @@ type AgentComposerProps = Omit<React.ComponentProps<"form">, "onSubmit" | "child
   mentions?: ComposerMention[]
   /** Commands offered after a leading `/`. */
   commands?: ComposerCommand[]
+  /** Shows the attach button; without it there is none. */
   onAttach?: () => void
+  /** Shows the dictate button; without it there is none. */
   onVoice?: () => void
+  labels?: AgentComposerLabels
+  /** Passed to the textarea (`id`, `name`, `enterKeyHint`, `aria-describedby`…). Handlers run before the composer's own. */
+  inputProps?: Omit<React.ComponentProps<"textarea">, "value" | "defaultValue" | "ref">
   /** Controls after the attach button (access mode). */
   toolbarStart?: React.ReactNode
   /** Controls before the mic and send buttons (model, effort). */
@@ -87,7 +110,7 @@ type AgentComposerProps = Omit<React.ComponentProps<"form">, "onSubmit" | "child
  */
 const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(function AgentComposer(
   {
-    placeholder = "Ask anything, @tag files/folders, or use / to show available commands",
+    placeholder: placeholderProp,
     value: valueProp,
     defaultValue = "",
     onValueChange,
@@ -98,6 +121,8 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
     commands = [],
     onAttach,
     onVoice,
+    labels: labelsProp,
+    inputProps,
     toolbarStart,
     toolbarEnd,
     header,
@@ -109,6 +134,17 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
   forwardedRef
 ) {
   const reduce = useReducedMotion()
+  const { labels: locale } = useLocale()
+  const t = {
+    attach: labelsProp?.attach ?? locale.attachFiles,
+    send: labelsProp?.send ?? locale.send,
+    stop: labelsProp?.stop ?? locale.stop,
+    input: labelsProp?.input ?? locale.composerInput,
+    dictate: labelsProp?.dictate ?? locale.dictate,
+    mentions: labelsProp?.mentions ?? locale.filesAndFolders,
+    commands: labelsProp?.commands ?? locale.commands,
+  }
+  const placeholder = placeholderProp ?? locale.composerPlaceholder
   const [valueState, setValueState] = React.useState(defaultValue)
   const value = valueProp ?? valueState
   const setValue = (next: string) => {
@@ -203,9 +239,9 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
             className="absolute inset-x-0 bottom-full z-20 mb-2 frame-xl frame-p-1 origin-bottom bg-popover shadow-surface"
           >
             <div className="px-2 pt-1 pb-1 text-ui-xs text-muted-foreground">
-              {trigger?.char === "@" ? "Files and folders" : "Commands"}
+              {trigger?.char === "@" ? t.mentions : t.commands}
             </div>
-            <ul id={listId} role="listbox" aria-label={trigger?.char === "@" ? "Files" : "Commands"} className="flex max-h-64 flex-col overflow-y-auto overscroll-contain">
+            <ul id={listId} role="listbox" aria-label={trigger?.char === "@" ? t.mentions : t.commands} className="flex max-h-64 flex-col overflow-y-auto overscroll-contain">
               {suggestions.map((s, i) => (
                 <li
                   key={s.key}
@@ -228,6 +264,7 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
       </AnimatePresence>
       {header && <div data-slot="agent-composer-header" className="flex flex-col gap-1 border-b border-border p-1">{header}</div>}
       <textarea
+        {...inputProps}
         ref={inputRef}
         data-slot="agent-composer-input"
         rows={1}
@@ -240,14 +277,23 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
         aria-controls={menuOpen ? listId : undefined}
         aria-activedescendant={menuOpen ? `${listId}-${active}` : undefined}
         aria-autocomplete="list"
-        aria-label="Message"
+        aria-label={inputProps?.["aria-label"] ?? (inputProps?.["aria-labelledby"] ? undefined : t.input)}
         onChange={(e) => {
+          inputProps?.onChange?.(e)
           setValue(e.target.value)
           sync(e.target.value, e.target.selectionStart)
         }}
-        onSelect={(e) => sync(e.currentTarget.value, e.currentTarget.selectionStart)}
-        onBlur={() => setTrigger(null)}
+        onSelect={(e) => {
+          inputProps?.onSelect?.(e)
+          sync(e.currentTarget.value, e.currentTarget.selectionStart)
+        }}
+        onBlur={(e) => {
+          inputProps?.onBlur?.(e)
+          setTrigger(null)
+        }}
         onKeyDown={(e) => {
+          inputProps?.onKeyDown?.(e)
+          if (e.defaultPrevented) return
           if (menuOpen) {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault()
@@ -275,25 +321,30 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
             submit()
           }
         }}
-        className="field-sizing-content max-h-60 min-h-14 w-full resize-none bg-transparent px-3.5 pt-3 text-ui-lg outline-none placeholder:text-muted-foreground disabled:opacity-64"
+        className={cn(
+          "field-sizing-content max-h-60 min-h-14 w-full resize-none bg-transparent px-3.5 pt-3 text-ui-lg outline-none placeholder:text-muted-foreground disabled:opacity-64",
+          inputProps?.className
+        )}
       />
       {/* Named container: mode / effort pickers drop their labels when this row is under 28rem (phones, tablets, split panes). */}
       <div data-slot="agent-composer-toolbar" className="@container/composer-toolbar flex min-w-0 items-center gap-1 p-2 pt-1">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Attach files" onClick={onAttach} className="text-muted-foreground">
-                <PlusIcon />
-              </Button>
-            }
-          />
-          <TooltipContent>Attach files</TooltipContent>
-        </Tooltip>
+        {onAttach && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={t.attach} onClick={onAttach} className="text-muted-foreground">
+                  <PlusIcon />
+                </Button>
+              }
+            />
+            <TooltipContent>{t.attach}</TooltipContent>
+          </Tooltip>
+        )}
         <div className="flex min-w-0 shrink items-center gap-1">{toolbarStart}</div>
         <div className="flex-1" />
         <div className="flex min-w-0 shrink items-center justify-end gap-1">{toolbarEnd}</div>
         {onVoice && (
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Dictate" onClick={onVoice} className="text-muted-foreground">
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={t.dictate} onClick={onVoice} className="text-muted-foreground">
             <MicIcon />
           </Button>
         )}
@@ -301,18 +352,18 @@ const AgentComposer = React.forwardRef<HTMLTextAreaElement, AgentComposerProps>(
           <TooltipTrigger
             render={
               busy ? (
-                <Button type="button" size="icon-sm" aria-label="Stop" onClick={onStop} className="rounded-full">
+                <Button type="button" size="icon-sm" aria-label={t.stop} onClick={onStop} className="rounded-full">
                   <StopIcon />
                 </Button>
               ) : (
-                <Button type="submit" size="icon-sm" aria-label="Send" disabled={!canSend} className="rounded-full">
+                <Button type="submit" size="icon-sm" aria-label={t.send} disabled={!canSend} className="rounded-full">
                   <ArrowUpIcon />
                 </Button>
               )
             }
           />
           <TooltipContent>
-            {busy ? "Stop" : "Send"}
+            {busy ? t.stop : t.send}
             <TooltipKbd>{busy ? "Esc" : "↵"}</TooltipKbd>
           </TooltipContent>
         </Tooltip>
@@ -332,6 +383,7 @@ type AgentComposerBannerProps = Omit<React.ComponentProps<"div">, "title"> & {
 
 /** One-line suggestion above the input ("Want to turn on auto-fix for this PR?"), with an action and dismiss. */
 function AgentComposerBanner({ icon, title, actionLabel, onAction, onDismiss, className, ...props }: AgentComposerBannerProps) {
+  const { labels } = useLocale()
   return (
     <div
       data-slot="agent-composer-banner"
@@ -347,7 +399,7 @@ function AgentComposerBanner({ icon, title, actionLabel, onAction, onDismiss, cl
         </Button>
       )}
       {onDismiss && (
-        <Button type="button" variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={onDismiss} className="text-muted-foreground">
+        <Button type="button" variant="ghost" size="icon-xs" aria-label={labels.dismiss} onClick={onDismiss} className="text-muted-foreground">
           <XIcon />
         </Button>
       )}
@@ -355,4 +407,4 @@ function AgentComposerBanner({ icon, title, actionLabel, onAction, onDismiss, cl
   )
 }
 
-export { AgentComposer, AgentComposerBanner, findTrigger, type AgentComposerProps, type AgentComposerBannerProps, type ComposerMention, type ComposerCommand }
+export { AgentComposer, AgentComposerBanner, findTrigger, type AgentComposerProps, type AgentComposerLabels, type AgentComposerBannerProps, type ComposerMention, type ComposerCommand }

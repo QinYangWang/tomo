@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { SearchIcon } from "@/components/icons";
 import { EmptyState, EmptyStateDescription } from "@/ui/empty-state";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
-import { SettingsGroup, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
+import { SettingsGroup, SettingsRow, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
 import { api, enc } from "../api.ts";
 import { esc, when } from "../lib.ts";
 import { toast, useShell } from "../store.tsx";
 import type { Hit } from "../types.ts";
-import { LinkRow, Sheet } from "./parts.tsx";
+import { Sheet } from "./parts.tsx";
 
 export function SearchSheet() {
   const { search, setSearch } = useShell();
@@ -44,12 +44,12 @@ export function SearchSheet() {
       {hits && (hits.length ? (
         <SettingsGroup id="hits">
           {hits.map((h) => (
-            <LinkRow key={h.entryId} className="hit" chevron={false} onClick={() => jump(h.entryId)}>
+            <SettingsRow interactive key={h.entryId} className="hit" chevron={false} onClick={() => jump(h.entryId)}>
               <SettingsRowText>
                 <SettingsRowDescription>{h.role === "user" ? "你" : "Tomo"}{h.at ? ` · ${when(h.at)}` : ""}</SettingsRowDescription>
                 <SettingsRowTitle className="font-normal"><span className="text-pretty [&_mark]:rounded-xs [&_mark]:bg-warning-subtle [&_mark]:text-foreground" dangerouslySetInnerHTML={{ __html: mark(h.text) }} /></SettingsRowTitle>
               </SettingsRowText>
-            </LinkRow>
+            </SettingsRow>
           ))}
         </SettingsGroup>
       ) : <EmptyState size="sm"><EmptyStateDescription>没找到「{q}」</EmptyStateDescription></EmptyState>)}

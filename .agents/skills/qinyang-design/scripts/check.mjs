@@ -13,7 +13,8 @@
  *   --list     print the rules and exit
  *
  * No dependencies. TypeScript, when the project has it, gives exact JSX checks (nesting,
- * comments, text); without it the class checks fall back to quoted strings.
+ * comments, text); without it, or with a native compiler build that has no parser API
+ * (TypeScript 7), the class checks fall back to quoted strings.
  *
  * Config (optional) in qinyang-design.config.json at the project root:
  *   {
@@ -161,11 +162,45 @@ roots.forEach(walk)
 
 /* ────────────────────────────── TypeScript (optional) ────────────────────────────── */
 
+// Only the classic compiler API works here. Native compiler builds (TypeScript 7+) ship no
+// `createSourceFile` / `ScriptKind`, so they count as missing and the regex checks run instead.
+const hasClassicApi = (mod) => {
+  try {
+    return classicApi(mod)
+  } catch {
+    return false
+  }
+}
+const classicApi = (mod) =>
+  !!mod &&
+  typeof mod.createSourceFile === "function" &&
+  typeof mod.createScanner === "function" &&
+  typeof mod.forEachChild === "function" &&
+  !!mod.ScriptKind &&
+  mod.ScriptKind.TSX !== undefined &&
+  !!mod.SyntaxKind &&
+  !!mod.ScriptTarget &&
+  !!mod.LanguageVariant
+const safeGet = (mod, key) => {
+  try {
+    return mod?.[key]
+  } catch {
+    return undefined
+  }
+}
+let tsNote = "TypeScript not found"
 function loadTs() {
   for (const from of [path.join(cwd, "package.json"), import.meta.url]) {
+    let mod
     try {
-      return createRequire(from)("typescript")
-    } catch {}
+      mod = createRequire(from)("typescript")
+    } catch {
+      continue
+    }
+    if (hasClassicApi(mod)) return mod
+    if (hasClassicApi(safeGet(mod, "default"))) return mod.default
+    const version = typeof safeGet(mod, "version") === "string" ? `${mod.version} ` : ""
+    tsNote = `TypeScript ${version}has no classic compiler API`
   }
   return null
 }
@@ -482,6 +517,7 @@ function checkUpgrade() {
 
 const SELF = path.resolve(new URL(import.meta.url).pathname)
 const SKILL_DIR = path.dirname(path.dirname(SELF)) + path.sep
+let tsFailures = 0
 for (const file of files) {
   if (path.resolve(file) === SELF) continue
   // Installed copies of this skill are reference text, not project code.
@@ -493,8 +529,17 @@ for (const file of files) {
   if (file.endsWith("registry.json")) checkRegistry(file, text)
   else if (/\.css$/.test(file)) checkCss(file, text)
   else if (/\.mdx?$/.test(file)) checkMarkdown(file, text)
-  else if (ts) checkSourceTs(file, text)
-  else checkSourcePlain(file, text)
+  else if (ts) {
+    // A compiler that loads but fails on a file falls back to the regex checks for that file.
+    const before = findings.length
+    try {
+      checkSourceTs(file, text)
+    } catch {
+      for (const f of findings.splice(before)) seenFindings.delete(`${f.rule}\u0000${f.file}\u0000${f.line}\u0000${f.message}`)
+      tsFailures++
+      checkSourcePlain(file, text)
+    }
+  } else checkSourcePlain(file, text)
 }
 checkUpgrade()
 
@@ -510,6 +555,6 @@ else {
     last = f.file
     console.log(`  ${String(f.line).padStart(4)}  ${f.level === "error" ? "error" : "warn "}  ${f.rule.padEnd(24)} ${f.message}`)
   }
-  console.log(`\n${files.length} files, ${errors} errors, ${warns} warnings${ts ? "" : " (TypeScript not found: JSX nesting checks skipped)"}`)
+  console.log(`\n${files.length} files, ${errors} errors, ${warns} warnings${ts ? (tsFailures ? ` (${tsFailures} files read without TypeScript)` : "") : ` (${tsNote}: JSX nesting checks skipped)`}`)
 }
 process.exit(errors || (flag("--strict") && warns) ? 1 : 0)

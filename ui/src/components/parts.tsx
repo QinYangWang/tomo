@@ -7,8 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/ui/alert-dialog";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/ui/page-header";
 import { ScrollArea } from "@/ui/scroll-area";
-import { SettingsGroup, SettingsRow, SettingsSection, SettingsSectionHeader, SettingsSectionTitle } from "@/ui/settings-section";
-import { ChevronRightIcon } from "@/components/icons";
+import { SettingsGroup, SettingsSection, SettingsSectionHeader, SettingsSectionTitle } from "@/ui/settings-section";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui/tooltip";
 import { confirmSignal, usePhone } from "../store.tsx";
 
@@ -115,22 +114,5 @@ export function Section({ title, note, children, id }: { title?: ReactNode; note
       <SettingsGroup id={id}>{children}</SettingsGroup>
       {note && <p className="note px-1 text-ui-sm text-pretty text-muted-foreground">{note}</p>}
     </SettingsSection>
-  );
-}
-
-/**
- * A settings row that opens something: the whole row is the button (or link), with a chevron at the end.
- * TODO(qinyang-gap): SettingsRow has no interactive variant (hover/press fill, focus ring, trailing chevron); this composes one from SettingsRow + tokens.
- */
-export function LinkRow({ children, onClick, href, chevron = true, className, ...p }: { children: ReactNode; onClick?: () => void; href?: string; chevron?: boolean; className?: string; [k: `data-${string}`]: string | undefined }) {
-  return (
-    <SettingsRow
-      className={cn("cursor-pointer flex-nowrap text-start transition-colors duration-150 outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset active:bg-foreground/6", className)}
-      render={href ? <a href={href} target="_blank" rel="noopener" /> : <button type="button" onClick={onClick} />}
-      {...p}
-    >
-      {children}
-      {chevron && <ChevronRightIcon className="shrink-0 text-muted-foreground" />}
-    </SettingsRow>
   );
 }

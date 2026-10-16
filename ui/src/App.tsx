@@ -1,4 +1,4 @@
-// Shell: sign-in gate, then rail · list · main pane on a shell band (the list is a drawer and the rail is the tab bar on phones).
+// Shell: sign-in gate, then rail · list · main pane on a shell band (on phones the list is a drawer and the tab bar sits under the page).
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeftIcon } from "@/components/icons";
@@ -92,9 +92,9 @@ function Shell({ firstRun }: { firstRun: boolean }) {
   return (
     <>
       {phone ? (
-        <div id="app" className="flex h-dvh w-full flex-col overflow-hidden bg-shell text-foreground">
-          <main className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-shell bg-background">{view}</main>
-          <div className="shrink-0 pb-[env(safe-area-inset-bottom)]"><Rail section={section} onSettings={onSettings} /></div>
+        <div id="app" className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">{view}</main>
+          <Rail section={section} onSettings={onSettings} />
           <Sidebar section={section} current={projectId} page={page} />
         </div>
       ) : (

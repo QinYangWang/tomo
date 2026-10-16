@@ -13,10 +13,10 @@ import { IconChip } from "@/ui/icon-chip";
 import { Input } from "@/ui/input";
 import { PasswordInput } from "@/ui/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select";
-import { SettingsFooterNote, SettingsGroup, SettingsGroupFooter, SettingsRow, SettingsRowControl, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
+import { SettingsFooterNote, SettingsGroup, SettingsGroupFooter, SettingsRow, SettingsRowControl, SettingsRowLink, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
 import { Switch } from "@/ui/switch";
 import { api, enc, session } from "../api.ts";
-import { Head, LinkRow, Msg, Section, Steps, ToolbarButton, type Flash } from "../components/parts.tsx";
+import { Head, Msg, Section, Steps, ToolbarButton, type Flash } from "../components/parts.tsx";
 import { PAGE_ICON } from "../components/Sidebar.tsx";
 import { invalidate, useModels, useSettings } from "../queries.ts";
 import { confirmDialog, isPhone, toast } from "../store.tsx";
@@ -64,27 +64,26 @@ export function SettingsRoot() {
   const n = S.channels.filter((c) => c.enabled && c.status.state === "connected").length;
   const vals: Record<string, string> = { profile: who ? "" : "未填写", accounts: n ? `${n} 个已连接` : "未连接", models: key ? S.model.modelId.split("/").pop()! : "未设置" };
   const row = (k: string, label: string, to: () => void) => (
-    <LinkRow key={k} data-k={k} onClick={to}>
+    <SettingsRow interactive key={k} data-k={k} onClick={to} detail={vals[k] || undefined}>
       <RowIcon>{PAGE_ICON[k]}</RowIcon>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <Val>{vals[k] ?? ""}</Val>
-    </LinkRow>
+      <span className="flex-1 whitespace-nowrap">{label}</span>
+    </SettingsRow>
   );
   return (
     <>
       <SettingsGroup className="setHead">
-        <LinkRow onClick={() => nav({ to: "/settings/$page", params: { page: "profile" } })}>
+        <SettingsRow interactive onClick={() => nav({ to: "/settings/$page", params: { page: "profile" } })}>
           <Avatar size="lg"><AvatarFallback>{who ? [...who][0]!.toUpperCase() : "?"}</AvatarFallback></Avatar>
           <SettingsRowText>
             <SettingsRowTitle className="text-ui-lg">{who || "你好"}</SettingsRowTitle>
             <SettingsRowDescription>{who ? P.email || P.work || "" : "填写资料"}</SettingsRowDescription>
           </SettingsRowText>
-        </LinkRow>
+        </SettingsRow>
       </SettingsGroup>
       <SettingsGroup>{Object.entries(TOOLS).map(([k, v]) => row(k, v[0], () => nav({ to: `/${k}` as "/" })))}</SettingsGroup>
       {GROUPS.map((g, i) => <SettingsGroup key={i}>{g.map((k) => row(k, PAGES[k]![0], () => nav({ to: "/settings/$page", params: { page: k } })))}</SettingsGroup>)}
       <SettingsGroup className="logoutRow">
-        <LinkRow onClick={logout} chevron={false}><RowIcon><LogOutIcon /></RowIcon><span className="flex-1 text-destructive">退出登录</span></LinkRow>
+        <SettingsRow interactive onClick={logout} chevron={false}><RowIcon><LogOutIcon /></RowIcon><span className="flex-1 text-destructive">退出登录</span></SettingsRow>
       </SettingsGroup>
     </>
   );
@@ -140,11 +139,11 @@ export function AccountsPage() {
       {S.channels.map((c) => {
         const [st, cls] = chState(c);
         return (
-          <LinkRow key={c.id} data-a={`channel:${c.id}`} onClick={() => nav({ to: "/settings/accounts/$account", params: { account: `channel:${c.id}` } })}>
+          <SettingsRow interactive key={c.id} data-a={`channel:${c.id}`} onClick={() => nav({ to: "/settings/accounts/$account", params: { account: `channel:${c.id}` } })}>
             <Mark>{CH_ICON[c.id]}</Mark>
             <span className="min-w-0 flex-1 truncate font-medium">{CH[c.id].label}</span>
             {chHasToken(c) ? <Badge size="sm" variant={cls === "ok" ? "success" : cls === "err" ? "destructive" : cls === "warn" ? "warning" : "chip"}>{st}</Badge> : <Badge size="sm" variant="primary">连接</Badge>}
-          </LinkRow>
+          </SettingsRow>
         );
       })}
     </SettingsGroup>
@@ -312,14 +311,14 @@ function ModelsPage() {
     <>
       <Section title="服务商">
         {S.providers.map((p) => (
-          <LinkRow key={p.id} data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
+          <SettingsRow interactive key={p.id} data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
             <Mark>{PROVIDER_ICON[p.id] ?? <BotIcon />}</Mark>
             <SettingsRowText>
               <SettingsRowTitle>{p.label}</SettingsRowTitle>
               {S.model.provider === p.id && ready(p) && <SettingsRowDescription>正在用</SettingsRowDescription>}
             </SettingsRowText>
             {ready(p) ? okBadge("已添加") : <Badge size="sm" variant="primary">添加</Badge>}
-          </LinkRow>
+          </SettingsRow>
         ))}
       </Section>
       {usable.length ? main && small && (
@@ -439,6 +438,7 @@ function BackupPage() {
       </Section>
       <Section title="恢复码" note="备份是加密的，没有恢复码打不开。请抄下来，存在别处">
         <SettingsRow>
+          {/* design-check-ignore tracking -- recovery code: upper-case letter and digit groups */}
           <code className="min-w-0 flex-1 font-mono text-ui tracking-wider break-all" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
           {code ? <ToolbarButton label="复制" onClick={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))}><CopyIcon /></ToolbarButton>
             : <Button variant="secondary" size="sm" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</Button>}
@@ -499,6 +499,7 @@ function SecurityPage() {
         )) : <SettingsRow><SettingsRowDescription>还没有绑定</SettingsRowDescription></SettingsRow>}
         {code && (
           <SettingsRow className="flex-col">
+            {/* design-check-ignore tracking -- pairing code: digits only */}
             <div className="code font-mono text-4xl font-semibold tracking-widest tabular-nums">{code}</div>
             <p className="text-center text-ui-sm text-muted-foreground">10 分钟内私聊机器人发送 <Code>/pair {code}</Code></p>
           </SettingsRow>
@@ -522,7 +523,7 @@ function AboutPage() {
         <SettingsRowText><SettingsRowTitle>Tomo</SettingsRowTitle></SettingsRowText>
         <Val>你的私人助手</Val>
       </SettingsRow>
-      <LinkRow href="https://github.com/QinYangWang/tomo"><span className="flex-1">源代码</span></LinkRow>
+      <SettingsRowLink render={<a href="https://github.com/QinYangWang/tomo" target="_blank" rel="noopener" />}><span className="min-w-0 flex-1 truncate">源代码</span></SettingsRowLink>
     </Section>
   );
 }

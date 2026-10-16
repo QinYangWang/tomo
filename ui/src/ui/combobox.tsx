@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { useDirection } from "@base-ui/react/direction-provider"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox"
@@ -6,6 +8,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { CheckIcon, ChevronsUpDownIcon, SearchIcon, XIcon } from "@/components/icons"
 import { ControlSizeContext, useControlSize, type ControlSize } from "@/lib/control-size"
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/ui/locale-provider"
 
 // Heights match Button (xs 24, sm 28, default 32, lg 36). Set `size` on <Combobox> (or a
 // Field) to size the input or trigger and the rows together.
@@ -106,6 +109,7 @@ function ComboboxInput({
     showClear?: boolean
     showTrigger?: boolean
   }) {
+  const { labels } = useLocale()
   const size = useControlSize(sizeProp)
   const [buttonBox, iconSize] = inputButton[size]
   return (
@@ -123,7 +127,7 @@ function ComboboxInput({
       {showClear && (
         <ComboboxPrimitive.Clear
           data-slot="combobox-clear"
-          aria-label="Clear selection"
+          aria-label={labels.clearSelection}
           className={cn(
             "flex shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-[color,background-color,opacity,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-ending-style:scale-75 data-ending-style:opacity-0 data-starting-style:scale-75 data-starting-style:opacity-0",
             buttonBox
@@ -135,7 +139,7 @@ function ComboboxInput({
       {showTrigger && (
         <ComboboxPrimitive.Trigger
           data-slot="combobox-trigger"
-          aria-label="Show options"
+          aria-label={labels.showOptions}
           className={cn(
             "flex shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
             buttonBox

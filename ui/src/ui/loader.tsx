@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/ui/locale-provider"
 
 type LoaderVariant = "spinner" | "ring" | "dots" | "bars" | "pulse" | "ripple" | "orbit" | "typing"
 /** `default` is an alias of `md`, matching the other components' size names. */
@@ -252,7 +253,7 @@ function Loader({
   variant = "spinner",
   size = "md",
   speed = 1,
-  label = "Loading",
+  label: labelProp,
   style,
   ...props
 }: Omit<React.ComponentProps<"span">, "children"> & {
@@ -263,6 +264,8 @@ function Loader({
   /** Announced to screen readers. */
   label?: string
 }) {
+  const { labels } = useLocale()
+  const label = labelProp ?? labels.loading
   const Part = PARTS[variant]
   const s = SIZES[size]
   const rate = speed > 0 ? speed : 1

@@ -1,7 +1,10 @@
+"use client"
+
 import * as React from "react"
 import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible"
 import { motion, useReducedMotion } from "motion/react"
-import { createHighlighter, type Highlighter } from "shiki"
+import { createHighlighterCore, type HighlighterCore, type LanguageInput } from "shiki/core"
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript"
 
 import {
   CheckCircleIcon,
@@ -19,6 +22,7 @@ import {
 import { cn } from "@/lib/utils"
 import { ActionSwapRollText } from "@/ui/action-swap-roll"
 import { IconChip } from "@/ui/icon-chip"
+import { useLocale, type LocaleLabels } from "@/ui/locale-provider"
 
 /* -------------------------------------------------------------------------- */
 /* Shared agent helpers (also used by tool-approval, streaming-response,      */
@@ -31,16 +35,35 @@ type CodeLanguage = "bash" | "json" | "diff" | "tsx" | "typescript" | "yaml" | "
 
 const LIGHT_THEME = "github-light-default"
 const DARK_THEME = "github-dark-default"
-const LANGS: Exclude<CodeLanguage, "text">[] = ["bash", "json", "diff", "tsx", "typescript", "yaml", "python"]
+
+// Only these grammars and the two themes reach the bundle, each as its own chunk loaded on first use.
+const LANG_LOADERS: Record<Exclude<CodeLanguage, "text">, () => LanguageInput> = {
+  bash: () => import("shiki/langs/bash.mjs"),
+  json: () => import("shiki/langs/json.mjs"),
+  diff: () => import("shiki/langs/diff.mjs"),
+  tsx: () => import("shiki/langs/tsx.mjs"),
+  typescript: () => import("shiki/langs/typescript.mjs"),
+  yaml: () => import("shiki/langs/yaml.mjs"),
+  python: () => import("shiki/langs/python.mjs"),
+}
 
 type CodeToken = { content: string; light?: string; dark?: string }
 
-let highlighterPromise: Promise<Highlighter> | null = null
+let highlighterPromise: Promise<HighlighterCore> | null = null
+const langPromises = new Map<string, Promise<void>>()
 const tokenCache = new Map<string, CodeToken[][]>()
 
-function getHighlighter() {
-  highlighterPromise ??= createHighlighter({ themes: [LIGHT_THEME, DARK_THEME], langs: LANGS })
-  return highlighterPromise
+/** The shared highlighter, with `language` loaded. */
+async function getHighlighter(language: Exclude<CodeLanguage, "text">) {
+  highlighterPromise ??= createHighlighterCore({
+    themes: [import("shiki/themes/github-light-default.mjs"), import("shiki/themes/github-dark-default.mjs")],
+    langs: [],
+    engine: createJavaScriptRegexEngine(),
+  })
+  const highlighter = await highlighterPromise
+  if (!langPromises.has(language)) langPromises.set(language, highlighter.loadLanguage(LANG_LOADERS[language]()))
+  await langPromises.get(language)
+  return highlighter
 }
 
 /**
@@ -63,7 +86,7 @@ function useCodeTokens(code: string, language: CodeLanguage) {
       return
     }
     let cancelled = false
-    getHighlighter()
+    getHighlighter(language)
       .then((highlighter) => {
         if (cancelled) return
         const lines = highlighter
@@ -220,16 +243,17 @@ function AgentIconButton({ className, label, pressed, ...props }: React.Componen
 /** Copy action that flips to a check for a moment. */
 function AgentCopyButton({
   value,
-  label = "Copy",
+  label,
   className,
 }: {
   value: string | (() => void | Promise<void>)
   label?: string
   className?: string
 }) {
+  const { labels } = useLocale()
   const { copied, copy } = useCopyToClipboard()
   return (
-    <AgentIconButton label={copied ? "Copied" : label} onClick={() => copy(value)} className={className}>
+    <AgentIconButton label={copied ? labels.copied : (label ?? labels.copy)} onClick={() => copy(value)} className={className}>
       <span className="relative grid size-3.5 place-items-center">
         <CopyIcon
           className={cn(
@@ -255,11 +279,11 @@ function AgentCopyButton({
 type ToolResultStatus = "running" | "success" | "error" | "cancelled"
 type ToolResultKind = "terminal" | "request" | "custom"
 
-const STATUS_LABEL: Record<ToolResultStatus, string> = {
-  running: "Running",
-  success: "Done",
-  error: "Failed",
-  cancelled: "Cancelled",
+const STATUS_LABEL: Record<ToolResultStatus, keyof LocaleLabels> = {
+  running: "toolRunning",
+  success: "toolDone",
+  error: "toolFailed",
+  cancelled: "toolCancelled",
 }
 
 const STATUS_TONE: Record<ToolResultStatus, string> = {
@@ -337,6 +361,8 @@ function ToolResult({
   ...props
 }: ToolResultProps) {
   const reduce = useReducedMotion()
+  const { labels } = useLocale()
+  const statusLabel = labels[STATUS_LABEL[status]] as string
   const running = status === "running"
   const [isOpen, setOpen] = useControllableOpen(open, defaultOpen, onOpenChange)
   const elapsed = useElapsed(running)
@@ -396,7 +422,7 @@ function ToolResult({
           className={cn("inline-flex shrink-0 items-center gap-1 text-ui-sm font-medium", STATUS_TONE[status])}
         >
           <ToolStatusIcon status={status} />
-          <ActionSwapRollText value={status}>{STATUS_LABEL[status]}</ActionSwapRollText>
+          <ActionSwapRollText value={status}>{statusLabel}</ActionSwapRollText>
         </span>
         <ChevronDownIcon
           aria-hidden
@@ -421,14 +447,14 @@ function ToolResult({
             </div>
             {copyText || onRetry ? (
               <div className="flex items-center gap-0.5 border-t border-border/60 px-1.5 py-1">
-                {copyText ? <AgentCopyButton value={copyText} label="Copy output" /> : null}
+                {copyText ? <AgentCopyButton value={copyText} label={labels.copyOutput} /> : null}
                 {onRetry ? (
-                  <AgentIconButton label="Run again" onClick={onRetry} disabled={running}>
+                  <AgentIconButton label={labels.runAgain} onClick={onRetry} disabled={running}>
                     <RefreshIcon />
                   </AgentIconButton>
                 ) : null}
                 <span className="ml-auto pr-1.5 text-ui-xs text-muted-foreground">
-                  {running ? "Streaming output…" : `${STATUS_LABEL[status]} in ${formatDuration(shownDuration)}`}
+                  {running ? labels.streamingOutput : labels.finishedIn(statusLabel, formatDuration(shownDuration))}
                 </span>
               </div>
             ) : null}

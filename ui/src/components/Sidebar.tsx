@@ -5,6 +5,7 @@ import { BotIcon, CalendarDaysIcon, ChatIcon, FolderIcon, HistoryIcon, HomeIcon,
 import { Drawer, DrawerContent, DrawerTitle } from "@/ui/drawer";
 import { IconRail, IconRailItem, IconRailSeparator, IconRailSpacer } from "@/ui/icon-rail";
 import { ScrollArea } from "@/ui/scroll-area";
+import { TabBar, TabBarItem } from "@/ui/tab-bar";
 import { SettingsNav, SettingsNavItem } from "@/ui/settings-section";
 import { ThreadList, ThreadListGroup, ThreadListItem } from "@/ui/thread-list-item";
 import { ago, briefLine, pname } from "../lib.ts";
@@ -35,17 +36,24 @@ export const PAGE_ICON: Record<string, ReactNode> = {
 /** The app rail: a column on wide screens, the bottom tab bar on phones (where 定时/记忆/技能 live in settings). */
 export function Rail({ section, onSettings }: { section: Section; onSettings: () => void }) {
   const phone = usePhone();
-  const items = phone ? NAV.filter((n) => !n[4]) : NAV;
+  if (phone)
+    return (
+      <TabBar id="rail" aria-label="导航" className="shrink-0">
+        {NAV.filter((n) => !n[4]).map(([k, label, icon, to]) => (
+          <TabBarItem key={k} label={label} icon={icon} active={section === k} render={<Link to={to} data-view={k} />} />
+        ))}
+        <TabBarItem id="setBtn" label="设置" icon={<SettingsIcon />} active={section === "settings"} onClick={onSettings} />
+      </TabBar>
+    );
   return (
-    // TODO(qinyang-gap): bottom tab bar with a label under each icon (IconRail horizontal has icons and tooltips only).
-    <IconRail id="rail" aria-label="导航" orientation={phone ? "horizontal" : "vertical"} className={phone ? "justify-around" : undefined}>
-      {items.map(([k, label, icon, to], i) => (
+    <IconRail id="rail" aria-label="导航" orientation="vertical">
+      {NAV.map(([k, label, icon, to], i) => (
         <span key={k} className="contents">
-          {!phone && i === 3 && <IconRailSeparator />}
+          {i === 3 && <IconRailSeparator />}
           <IconRailItem label={label} icon={icon} active={section === k} render={<Link to={to} data-view={k} />} />
         </span>
       ))}
-      {!phone && <IconRailSpacer />}
+      <IconRailSpacer />
       <IconRailItem id="setBtn" label="设置" icon={<SettingsIcon />} active={section === "settings"} onClick={onSettings} />
     </IconRail>
   );
@@ -85,7 +93,6 @@ function ChatList() {
     <>
       <SideHead title="对话" />
       <List>
-        {/* TODO(qinyang-gap): ThreadListItem has no free-form subtitle line (needed for "各平台的私聊都在这" / the platform name). */}
         <ThreadList>
           <ThreadListGroup label="全部">
             {rows.map((v) => {
@@ -94,7 +101,7 @@ function ChatList() {
                 <ThreadListItem
                   key={id} data-conv={id} title={v.key === "home" ? "私聊" : v.key} active={chat.conv === id}
                   icon={v.key === "home" ? <UserIcon /> : <ChatIcon />}
-                  trailing={v.key === "home" ? undefined : <span className="text-ui-xs text-muted-foreground">{v.platform}</span>}
+                  description={v.key === "home" ? "各平台的私聊都在这" : v.platform}
                   onClick={() => nav({ to: "/chat", search: id === "home" ? {} : { c: id } })}
                 />
               );
@@ -115,18 +122,9 @@ function ProjectList({ current }: { current?: string }) {
   const archived = projects.filter((p) => p.status !== "active");
   const row = (p: Project) => (
     <ThreadListItem
-      key={p.id} data-project={p.id} title={pname(p)} repo={briefLine(p.brief) || undefined} active={p.id === current} icon={<FolderIcon />}
-      onClick={(e) => {
-        // Clicks from the row's own menu (and its portalled popup) are not row clicks.
-        if (!e.currentTarget.contains(e.target as Node) || (e.target as HTMLElement).closest("[data-slot=button]")) return;
-        nav({ to: "/projects/$id", params: { id: p.id } });
-      }}
-      trailing={
-        <>
-          <span className="text-ui-xs text-muted-foreground tabular-nums group-hover/thread:hidden group-data-active/thread:hidden pointer-coarse:hidden">{ago(p.updated_at)}</span>
-          <span className="hidden group-hover/thread:flex group-data-active/thread:flex pointer-coarse:flex"><ProjectMenu p={p} trigger="row" /></span>
-        </>
-      }
+      key={p.id} data-project={p.id} title={pname(p)} description={briefLine(p.brief) || undefined} active={p.id === current} icon={<FolderIcon />}
+      meta={ago(p.updated_at)} actions={<ProjectMenu p={p} trigger="row" />}
+      onClick={() => nav({ to: "/projects/$id", params: { id: p.id } })}
     />
   );
   return (

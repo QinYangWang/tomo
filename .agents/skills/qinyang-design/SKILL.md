@@ -29,7 +29,8 @@ node .agents/skills/qinyang-design/scripts/check.mjs app src    # only these pat
 
 Static checks for most of the rules below (tokens, radius cap and concentric nesting, type scale,
 tracking, press scale, transitions, icon imports, menu labels, copy density, provenance, registry
-names, stale theme). No dependencies; with TypeScript in the project it reads JSX exactly. Exit code 1
+names, stale theme). No dependencies; with TypeScript in the project it reads JSX exactly (the native
+TypeScript 7 compiler has no parser API, so there it falls back to line checks). Exit code 1
 on errors (`--strict`: warnings too), `--json` for tools, `--list` for the rule ids. Configure it in
 `qinyang-design.config.json` (allow-list a file with a reason, add names that must not appear in copy);
 silence one line with a comment `design-check-ignore <rule> -- <reason>` above it.

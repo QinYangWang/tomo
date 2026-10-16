@@ -1,9 +1,12 @@
+"use client"
+
 import * as React from "react"
 import { useDirection } from "@base-ui/react/direction-provider"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
 import { XIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/ui/locale-provider"
 
 const Popover = PopoverPrimitive.Root
 const PopoverTrigger = PopoverPrimitive.Trigger
@@ -82,10 +85,11 @@ function PopoverClose({ className, ...props }: PopoverPrimitive.Close.Props) {
 
 /** Round × button pinned to the popover's top-right corner. */
 function PopoverCloseButton({ className, ...props }: PopoverPrimitive.Close.Props) {
+  const { labels } = useLocale()
   return (
     <PopoverPrimitive.Close
       data-slot="popover-close-button"
-      aria-label="Close"
+      aria-label={labels.close}
       className={cn(
         "absolute top-2 end-2 inline-flex size-6 cursor-pointer items-center justify-center rounded-[max(calc(var(--radius-xl)-var(--spacing)*2),var(--radius-sm))] text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
         className

@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { LocaleProvider } from "@/ui/locale-provider";
 import { ToastProvider } from "@/ui/toast";
 import { TooltipProvider } from "@/ui/tooltip";
 import { Root } from "./App.tsx";
@@ -54,14 +55,16 @@ declare module "@tanstack/react-router" {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={qc}>
-      <ToastProvider toastManager={toastManager} timeout={2400}>
-        <TooltipProvider>
-          <ShellProvider>
-            <RouterProvider router={router} />
-          </ShellProvider>
-        </TooltipProvider>
-      </ToastProvider>
-    </QueryClientProvider>
+    <LocaleProvider locale="zh-CN">
+      <QueryClientProvider client={qc}>
+        <ToastProvider toastManager={toastManager} timeout={2400}>
+          <TooltipProvider>
+            <ShellProvider>
+              <RouterProvider router={router} />
+            </ShellProvider>
+          </TooltipProvider>
+        </ToastProvider>
+      </QueryClientProvider>
+    </LocaleProvider>
   </StrictMode>,
 );

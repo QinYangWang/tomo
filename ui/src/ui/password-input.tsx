@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
@@ -7,6 +5,7 @@ import { EyeIcon, EyeOffIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { useControlSize, type ControlSize } from "@/lib/control-size"
 import { Input } from "@/ui/input"
+import { useLocale } from "@/ui/locale-provider"
 
 /*
  * Password field with a show / hide button inside its end edge. Takes every
@@ -29,6 +28,7 @@ type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, "type"> & {
 }
 
 function PasswordInput({ revealed: revealedProp, defaultRevealed = false, onRevealedChange, className, disabled, size: sizeProp, ...props }: PasswordInputProps) {
+  const { labels } = useLocale()
   const size = useControlSize(sizeProp)
   const reduce = useReducedMotion()
   const [inner, setInner] = React.useState(defaultRevealed)
@@ -44,7 +44,7 @@ function PasswordInput({ revealed: revealedProp, defaultRevealed = false, onReve
         type="button"
         onClick={toggle}
         disabled={disabled}
-        aria-label={revealed ? "Hide password" : "Show password"}
+        aria-label={revealed ? labels.hidePassword : labels.showPassword}
         aria-pressed={revealed}
         className={cn(
           "absolute top-1/2 flex -translate-y-1/2 cursor-pointer items-center justify-center text-muted-foreground outline-none transition-colors duration-150 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-64",

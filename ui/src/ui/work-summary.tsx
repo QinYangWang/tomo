@@ -15,6 +15,7 @@ import {
 } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { Loader } from "@/ui/loader"
+import { useLocale } from "@/ui/locale-provider"
 import { TextShimmer } from "@/ui/text-shimmer"
 
 const EASE = [0.22, 1, 0.36, 1] as const
@@ -57,6 +58,17 @@ function useElapsed(startedAt: number | undefined, running: boolean) {
   return startedAt === undefined ? 0 : (now - startedAt) / 1000
 }
 
+/** Controlled-or-uncontrolled open state. */
+function useOpenState(openProp: boolean | undefined, defaultOpen: boolean, onOpenChange?: (open: boolean) => void) {
+  const [openState, setOpenState] = React.useState(defaultOpen)
+  const open = openProp ?? openState
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setOpenState(next)
+    onOpenChange?.(next)
+  }
+  return [open, setOpen] as const
+}
+
 type WorkSummaryProps = Omit<React.ComponentProps<"div">, "title"> & {
   /** Seconds the turn took. While `running`, pass `startedAt` instead to tick live. */
   duration?: number
@@ -88,16 +100,12 @@ function WorkSummary({
   ...props
 }: WorkSummaryProps) {
   const reduce = useReducedMotion()
-  const [openState, setOpenState] = React.useState(defaultOpen)
-  const open = openProp ?? openState
-  const setOpen = (next: boolean) => {
-    if (openProp === undefined) setOpenState(next)
-    onOpenChange?.(next)
-  }
+  const { labels } = useLocale()
+  const [open, setOpen] = useOpenState(openProp, defaultOpen, onOpenChange)
   const elapsed = useElapsed(startedAt, running)
   const seconds = running ? elapsed : (duration ?? elapsed)
   const panelId = React.useId()
-  const text = label ?? (running ? `Working for ${formatDuration(seconds)}` : `Worked for ${formatDuration(seconds)}`)
+  const text = label ?? (running ? labels.workingFor(formatDuration(seconds)) : labels.workedFor(formatDuration(seconds)))
   const hasSteps = React.Children.count(children) > 0
 
   return (
@@ -149,29 +157,149 @@ type WorkSummaryStepProps = Omit<React.ComponentProps<"li">, "title"> & {
   status?: WorkStepStatus
   /** Custom leading icon (overrides the kind's icon). */
   icon?: React.ReactNode
+  /** The step row shows and hides its children, with a chevron at the end. Closed by default. */
+  collapsible?: boolean
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-/** One step: kind icon (spinner while in progress, ✕ when failed), title and a muted detail. Children render under it (output, a diff). */
-function WorkSummaryStep({ kind = "other", title, detail, status = "completed", icon, className, children, ...props }: WorkSummaryStepProps) {
+/**
+ * One step: kind icon (spinner while in progress, ✕ when failed), title and a muted detail.
+ * Children render under it (output, a diff); with `collapsible` the row toggles them.
+ */
+function WorkSummaryStep({
+  kind = "other",
+  title,
+  detail,
+  status = "completed",
+  icon,
+  collapsible = false,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  className,
+  children,
+  ...props
+}: WorkSummaryStepProps) {
+  const reduce = useReducedMotion()
+  const { labels } = useLocale()
+  const [open, setOpen] = useOpenState(openProp, defaultOpen, onOpenChange)
+  const panelId = React.useId()
   const Icon = KIND_ICON[kind] ?? BoltIcon
+  const hasChildren = children != null && children !== false
+  const toggles = collapsible && hasChildren
+  const row = (
+    <>
+      <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5">
+        {status === "in_progress" ? (
+          <Loader variant="ring" size="sm" label={labels.inProgress} className="size-3.5 text-primary" />
+        ) : status === "failed" ? (
+          <XIcon className="text-destructive" />
+        ) : (
+          (icon ?? <Icon />)
+        )}
+      </span>
+      <span className={cn("min-w-0 shrink-0 truncate", status === "pending" ? "opacity-64" : "text-foreground/80")}>{title}</span>
+      {detail && <span className="min-w-0 truncate font-mono text-ui-sm">{detail}</span>}
+    </>
+  )
   return (
-    <li data-slot="work-summary-step" data-status={status} className={cn("flex min-w-0 flex-col gap-1 py-0.5", className)} {...props}>
-      <div className="flex min-w-0 items-center gap-2 text-ui text-muted-foreground">
-        <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5">
-          {status === "in_progress" ? (
-            <Loader variant="ring" size="sm" label="In progress" className="size-3.5 text-primary" />
-          ) : status === "failed" ? (
-            <XIcon className="text-destructive" />
-          ) : (
-            (icon ?? <Icon />)
+    <li
+      data-slot="work-summary-step"
+      data-status={status}
+      data-open={(toggles && open) || undefined}
+      className={cn("flex min-w-0 flex-col gap-1 py-0.5", className)}
+      {...props}
+    >
+      {toggles ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen(!open)}
+          className="group/step -mx-1 flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1 text-start text-ui text-muted-foreground outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {row}
+          <ChevronRightIcon
+            aria-hidden
+            className={cn(
+              "ms-auto size-3.5 shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none rtl:rotate-180",
+              open && "rotate-90 rtl:rotate-90"
+            )}
+          />
+        </button>
+      ) : (
+        <div className="flex min-w-0 items-center gap-2 text-ui text-muted-foreground">{row}</div>
+      )}
+      {toggles ? (
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              id={panelId}
+              key="output"
+              initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              animate={reduce ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+              exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              className="overflow-hidden"
+            >
+              <div className="min-w-0 pb-0.5 pl-6">{children}</div>
+            </motion.div>
           )}
-        </span>
-        <span className={cn("min-w-0 shrink-0 truncate", status === "pending" ? "opacity-64" : "text-foreground/80")}>{title}</span>
-        {detail && <span className="min-w-0 truncate font-mono text-ui-sm">{detail}</span>}
-      </div>
-      {children && <div className="min-w-0 pl-6">{children}</div>}
+        </AnimatePresence>
+      ) : (
+        hasChildren && <div className="min-w-0 pl-6">{children}</div>
+      )}
     </li>
   )
 }
 
-export { WorkSummary, WorkSummaryStep, formatDuration, type WorkSummaryProps, type WorkSummaryStepProps, type WorkStepKind, type WorkStepStatus }
+type WorkSummaryThoughtProps = Omit<React.ComponentProps<"li">, "title"> & {
+  /** A heading such as "Thought for 4s". With it, the text folds under the heading (closed by default). */
+  title?: React.ReactNode
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+/** The model's thinking text between steps, in quiet reading type. */
+function WorkSummaryThought({ title, open, defaultOpen, onOpenChange, className, children, ...props }: WorkSummaryThoughtProps) {
+  const text = <div className="text-ui text-pretty whitespace-pre-wrap text-muted-foreground">{children}</div>
+  if (title != null && title !== false)
+    return (
+      <WorkSummaryStep
+        kind="think"
+        title={title}
+        collapsible
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={onOpenChange}
+        data-slot="work-summary-thought"
+        className={className}
+        {...props}
+      >
+        {text}
+      </WorkSummaryStep>
+    )
+  return (
+    <li data-slot="work-summary-thought" className={cn("flex min-w-0 gap-2 py-0.5", className)} {...props}>
+      <span className="flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-3.5">
+        <LightbulbIcon />
+      </span>
+      <div className="min-w-0 flex-1">{text}</div>
+    </li>
+  )
+}
+
+export {
+  WorkSummary,
+  WorkSummaryStep,
+  WorkSummaryThought,
+  formatDuration,
+  type WorkSummaryProps,
+  type WorkSummaryStepProps,
+  type WorkSummaryThoughtProps,
+  type WorkStepKind,
+  type WorkStepStatus,
+}

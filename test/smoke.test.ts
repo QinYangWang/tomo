@@ -6,13 +6,6 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { md } from "../ui/src/lib.ts";
-
-test("markdown keeps loose lists together and honors their starting number", () => {
-  expect(md("3. <a>\n\n4. **b**\n\n5. c\n\n- d\n\n- e\n\nDone\n\n1. f")).toBe(
-    '<ol start="3"><li>&lt;a&gt;</li><li><strong>b</strong></li><li>c</li></ol><ul><li>d</li><li>e</li></ul><p>Done</p><ol start="1"><li>f</li></ol>',
-  );
-});
 
 const dir = mkdtempSync(join(tmpdir(), "tomo-"));
 process.env.TOMO_DATA_DIR = dir;

@@ -1,11 +1,11 @@
-"use client"
-
 import * as React from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { AlertCircleIcon, RefreshIcon, ThumbsDownIcon, ThumbsUpIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/ui/checkbox"
 import { Citation, CitationGroup, Citations, type CitationSource } from "@/ui/citations"
+import { useLocale } from "@/ui/locale-provider"
 import {
   AGENT_EASE,
   AgentCopyButton,
@@ -15,14 +15,17 @@ import {
 } from "@/ui/tool-result"
 
 /* -------------------------------------------------------------------------- */
-/* Tiny markdown-ish renderer: paragraphs, headings, lists, fenced code,      */
-/* `code`, **bold**, *em*, [links](url) and [n] citation markers.             */
+/* Tiny markdown-ish renderer: paragraphs, headings, lists (numbered lists    */
+/* keep their first number, task items show a checkbox), fenced code, `code`, */
+/* **bold**, *em*, [links](url), bare http(s) links and [n] citation markers. */
 /* -------------------------------------------------------------------------- */
+
+type ListItem = { text: string; checked?: boolean }
 
 type Block =
   | { type: "p"; text: string }
   | { type: "h"; text: string }
-  | { type: "ul" | "ol"; items: string[] }
+  | { type: "ul" | "ol"; items: ListItem[]; start?: number }
   | { type: "code"; lang: string; code: string }
 
 function parseBlocks(src: string): Block[] {
@@ -45,8 +48,8 @@ function parseBlocks(src: string): Block[] {
       continue
     }
     const heading = line.match(/^#{1,4}\s+(.*)/)
-    const bullet = line.match(/^\s*[-*]\s+(.*)/)
-    const numbered = line.match(/^\s*\d+[.)]\s+(.*)/)
+    const bullet = line.match(/^\s*[-*+]\s+(.*)/)
+    const numbered = line.match(/^\s*(\d{1,9})[.)]\s+(.*)/)
     if (heading) {
       flush()
       blocks.push({ type: "h", text: heading[1] })
@@ -54,9 +57,11 @@ function parseBlocks(src: string): Block[] {
       flush()
       const kind = bullet ? "ul" : "ol"
       const last = blocks[blocks.length - 1]
-      const item = (bullet ?? numbered)![1]
+      let item: ListItem = { text: bullet ? bullet[1] : numbered![2] }
+      const task = item.text.match(/^\[([ xX])\]\s+(.*)/)
+      if (task) item = { text: task[2], checked: task[1] !== " " }
       if (last && last.type === kind) last.items.push(item)
-      else blocks.push({ type: kind, items: [item] })
+      else blocks.push({ type: kind, items: [item], start: numbered ? Number(numbered[1]) : undefined })
     } else if (!line.trim()) {
       flush()
     } else {
@@ -67,7 +72,19 @@ function parseBlocks(src: string): Block[] {
   return blocks
 }
 
-const INLINE = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)\s]+\)|\[\d+\])/g
+const INLINE = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)\s]+\)|\[\d+\]|<https?:\/\/[^\s<>]+>|https?:\/\/[^\s<>]+)/g
+
+/** Splits a bare URL from trailing punctuation the way GFM does (`.`, `,`, `?`, an unmatched `)`…). */
+function trimUrl(raw: string): [string, string] {
+  let url = raw
+  for (;;) {
+    const last = url.at(-1)
+    if (last && /[.,:;!?'"*_~]/.test(last)) url = url.slice(0, -1)
+    else if (last === ")" && (url.match(/\(/g)?.length ?? 0) < (url.match(/\)/g)?.length ?? 0)) url = url.slice(0, -1)
+    else break
+  }
+  return [url, raw.slice(url.length)]
+}
 
 function renderInline(text: string, sources: CitationSource[] | undefined, keyBase: string): React.ReactNode[] {
   return text.split(INLINE).map((part, i) => {
@@ -99,6 +116,25 @@ function renderInline(text: string, sources: CitationSource[] | undefined, keyBa
         </a>
       )
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2) return <em key={key}>{part.slice(1, -1)}</em>
+    const angle = part.match(/^<(https?:\/\/[^\s<>]+)>$/)
+    if (angle)
+      return (
+        <a key={key} href={angle[1]} target="_blank" rel="noreferrer noopener">
+          {angle[1]}
+        </a>
+      )
+    if (/^https?:\/\//.test(part)) {
+      const [url, rest] = trimUrl(part)
+      if (url.length <= "https://".length) return part
+      return (
+        <React.Fragment key={key}>
+          <a href={url} target="_blank" rel="noreferrer noopener">
+            {url}
+          </a>
+          {rest}
+        </React.Fragment>
+      )
+    }
     return part
   })
 }
@@ -164,11 +200,15 @@ function ResponseMarkdown({
         }
         if (block.type === "ul" || block.type === "ol") {
           const List = block.type
+          const tasks = block.items.some((item) => item.checked !== undefined)
           return (
-            <List key={k}>
+            <List key={k} start={block.type === "ol" && block.start !== undefined && block.start !== 1 ? block.start : undefined} className={tasks ? "contains-task-list" : undefined}>
               {block.items.map((item, ii) => (
-                <li key={ii}>
-                  {renderInline(item, sources, `${k}-${ii}`)}
+                <li key={ii} className={item.checked !== undefined ? "task-list-item" : undefined}>
+                  {item.checked !== undefined && (
+                    <Checkbox size="sm" checked={item.checked} readOnly tabIndex={-1} aria-label={item.text} className="me-2 translate-y-0.5" />
+                  )}
+                  {renderInline(item.text, sources, `${k}-${ii}`)}
                   {last && ii === block.items.length - 1 && tail}
                 </li>
               ))}
@@ -232,12 +272,14 @@ function StreamingResponse({
   feedback: feedbackProp,
   defaultFeedback = null,
   onFeedbackChange,
-  errorMessage = "The response was interrupted.",
+  errorMessage: errorMessageProp,
   showActions = true,
   className,
   contentClassName,
   ...props
 }: StreamingResponseProps) {
+  const { labels } = useLocale()
+  const errorMessage = errorMessageProp ?? labels.responseInterrupted
   const reduce = useReducedMotion()
   const streaming = status === "streaming"
   const [internalFeedback, setInternalFeedback] = React.useState<StreamingResponseFeedback>(defaultFeedback)
@@ -311,16 +353,16 @@ function StreamingResponse({
             transition={{ duration: reduce ? 0 : 0.3, ease: AGENT_EASE, delay: streaming ? 0 : 0.08 }}
             className="flex min-h-8 flex-wrap items-center gap-0.5"
           >
-            <AgentCopyButton value={copyValue} label="Copy response" />
+            <AgentCopyButton value={copyValue} label={labels.copyResponse} />
             {onRetry ? (
-              <AgentIconButton label="Regenerate" onClick={onRetry}>
+              <AgentIconButton label={labels.regenerate} onClick={onRetry}>
                 <RefreshIcon />
               </AgentIconButton>
             ) : null}
-            <AgentIconButton label="Good response" pressed={feedback === "up"} onClick={() => toggleFeedback("up")}>
+            <AgentIconButton label={labels.goodResponse} pressed={feedback === "up"} onClick={() => toggleFeedback("up")}>
               <ThumbsUpIcon className={cn(feedback === "up" && "text-success")} />
             </AgentIconButton>
-            <AgentIconButton label="Bad response" pressed={feedback === "down"} onClick={() => toggleFeedback("down")}>
+            <AgentIconButton label={labels.badResponse} pressed={feedback === "down"} onClick={() => toggleFeedback("down")}>
               <ThumbsDownIcon className={cn(feedback === "down" && "text-destructive")} />
             </AgentIconButton>
           </motion.div>

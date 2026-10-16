@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { useDirection } from "@base-ui/react/direction-provider"
 import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible"
@@ -8,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { ArrowUpRightIcon, BookmarkIcon, ChevronDownIcon, FileIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/ui/locale-provider"
 
 const EASE = [0.22, 1, 0.36, 1] as const
 
@@ -388,7 +387,7 @@ function CitationList({
  */
 function Citations({
   sources: sourcesProp,
-  title = "Sources",
+  title: titleProp,
   open: openProp,
   defaultOpen = false,
   onOpenChange,
@@ -403,6 +402,8 @@ function Citations({
   onOpenChange?: (open: boolean) => void
   className?: string
 }) {
+  const { labels } = useLocale()
+  const title = titleProp ?? labels.sources
   const group = React.useContext(CitationGroupContext)
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
   const sources = sourcesProp ?? group?.sources ?? []

@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { AnimatePresence, motion, useReducedMotion, type HTMLMotionProps } from "motion/react"
@@ -5,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion, type HTMLMotionProps } from 
 import { AlertCircleIcon, CheckCircleIcon, InfoIcon, WarningIcon, XIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { IconChip } from "@/ui/icon-chip"
+import { useLocale } from "@/ui/locale-provider"
 
 // The surface is an opaque card; the tone is a wash painted underneath the content
 // (a ::before layer) so it never changes the text contrast tokens.
@@ -206,12 +209,13 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
 
 /** Dismiss button; closes the parent Alert with its exit animation. */
 function AlertClose({ className, onClick, children, ...props }: React.ComponentProps<"button">) {
+  const { labels } = useLocale()
   const { dismiss, size } = useAlert()
   return (
     <button
       type="button"
       data-slot="alert-close"
-      aria-label="Dismiss"
+      aria-label={labels.dismiss}
       onClick={(e) => {
         onClick?.(e)
         if (!e.defaultPrevented) dismiss()
