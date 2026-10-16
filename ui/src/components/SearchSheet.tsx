@@ -1,12 +1,14 @@
 // Full-text search over the current conversation; picking a hit scrolls to it if it is on screen.
-import { Input } from "./kit.tsx";
-import { Icon } from "../icons.tsx";
 import { useEffect, useState } from "react";
+import { SearchIcon } from "@/components/icons";
+import { EmptyState, EmptyStateDescription } from "@/ui/empty-state";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
+import { SettingsGroup, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
 import { api, enc } from "../api.ts";
 import { esc, when } from "../lib.ts";
 import { toast, useShell } from "../store.tsx";
 import type { Hit } from "../types.ts";
-import { Sheet } from "./Sheet.tsx";
+import { LinkRow, Sheet } from "./parts.tsx";
 
 export function SearchSheet() {
   const { search, setSearch } = useShell();
@@ -31,21 +33,26 @@ export function SearchSheet() {
     const el = document.querySelector<HTMLElement>(`#log [data-entry="${CSS.escape(id)}"]`);
     if (!el) return toast("这条太早了，页面上没有显示");
     el.scrollIntoView({ block: "center", behavior: "smooth" });
-    el.animate([{ backgroundColor: "color-mix(in oklch, var(--primary) 18%, transparent)", borderRadius: "16px" }, { backgroundColor: "transparent", borderRadius: "16px" }], { duration: 1800, easing: "ease-out" });
+    el.animate([{ backgroundColor: "color-mix(in oklch, var(--primary) 18%, transparent)" }, { backgroundColor: "transparent" }], { duration: 1800, easing: "ease-out" });
   };
   return (
     <Sheet open={!!search} onClose={() => setSearch(null)} title={`搜索「${search?.label ?? ""}」`}>
-      <Input className="searchBox" id="hq" autoFocus placeholder="输入要找的字" value={q} onChange={setQ} leftIcon={<Icon name="search" size={16} />} classNames={{ field: "bg-background", input: "pl-9" }} />
+      <InputGroup>
+        <InputGroupAddon><SearchIcon /></InputGroupAddon>
+        <InputGroupInput id="hq" autoFocus placeholder="输入要找的字" aria-label="搜索" value={q} onChange={(e) => setQ(e.target.value)} />
+      </InputGroup>
       {hits && (hits.length ? (
-        <div className="group mt-4 flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+        <SettingsGroup id="hits">
           {hits.map((h) => (
-            <button key={h.entryId} type="button" className="hit px-4 py-3 text-left text-sm transition-colors hover:bg-foreground/[0.03]" onClick={() => jump(h.entryId)}>
-              <div className="who mb-0.5 text-xs text-muted-foreground">{h.role === "user" ? "你" : "Tomo"}{h.at ? ` · ${when(h.at)}` : ""}</div>
-              <div className="leading-6 [&_mark]:rounded [&_mark]:bg-warning/40 [&_mark]:px-0.5 [&_mark]:text-foreground" dangerouslySetInnerHTML={{ __html: mark(h.text) }} />
-            </button>
+            <LinkRow key={h.entryId} className="hit" chevron={false} onClick={() => jump(h.entryId)}>
+              <SettingsRowText>
+                <SettingsRowDescription>{h.role === "user" ? "你" : "Tomo"}{h.at ? ` · ${when(h.at)}` : ""}</SettingsRowDescription>
+                <SettingsRowTitle className="font-normal"><span className="text-pretty [&_mark]:rounded-xs [&_mark]:bg-warning-subtle [&_mark]:text-foreground" dangerouslySetInnerHTML={{ __html: mark(h.text) }} /></SettingsRowTitle>
+              </SettingsRowText>
+            </LinkRow>
           ))}
-        </div>
-      ) : <div className="empty py-10 text-center text-sm text-muted-foreground">没找到「{q}」</div>)}
+        </SettingsGroup>
+      ) : <EmptyState size="sm"><EmptyStateDescription>没找到「{q}」</EmptyStateDescription></EmptyState>)}
     </Sheet>
   );
 }

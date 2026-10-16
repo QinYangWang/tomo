@@ -1,21 +1,25 @@
 // 首页: a greeting and the panels Tomo builds. Nothing else.
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { api } from "../api.ts";
-import { ActionMenu, Btn, IconBtn } from "../components/kit.tsx";
-import { Sheet } from "../components/Sheet.tsx";
-import { TextShimmer } from "@/components/motion/text-shimmer";
-import { TopBar } from "../components/TopBar.tsx";
-import { Icon } from "../icons.tsx";
-import { ago, CADENCE, greeting, md } from "../lib.ts";
-import { Empty, Md, Page } from "../components/ui.tsx";
+import { EditIcon, GridIcon, MoreHorizontalIcon, PlusIcon, RefreshIcon, TrashIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { Button } from "@/ui/button";
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/ui/card";
+import { EmptyState, EmptyStateActions, EmptyStateDescription, EmptyStateIcon, EmptyStateTitle } from "@/ui/empty-state";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/ui/menu";
+import { Skeleton } from "@/ui/skeleton";
+import { ResponseMarkdown } from "@/ui/streaming-response";
+import { TextShimmer } from "@/ui/text-shimmer";
+import { Textarea } from "@/ui/textarea";
+import { api } from "../api.ts";
+import { Msg, Page, Sheet, ToolbarButton } from "../components/parts.tsx";
+import { TopBar } from "../components/TopBar.tsx";
+import { ago, CADENCE, greeting } from "../lib.ts";
 import { invalidate, usePanels, useSettings } from "../queries.ts";
 import { confirmDialog, useShell } from "../store.tsx";
 import type { Panel } from "../types.ts";
 
-const CARD = "panel relative flex min-h-44 flex-col gap-3 rounded-3xl border border-border bg-card p-5";
-const wide = (p: Panel) => ((p as { size?: string }).size === "wide" ? "sm:col-span-2" : (p as { size?: string }).size === "full" ? "sm:col-span-2 lg:col-span-3 min-h-0" : "");
+const span = (p: Panel) => ((p as { size?: string }).size === "wide" ? "sm:col-span-2" : (p as { size?: string }).size === "full" ? "sm:col-span-2 lg:col-span-3" : "");
 
 function PanelCard({ p, onEdit }: { p: Panel; onEdit: () => void }) {
   const act = async (a: string) => {
@@ -27,44 +31,43 @@ function PanelCard({ p, onEdit }: { p: Panel; onEdit: () => void }) {
     }
     invalidate("panels");
   };
-  const head = (
-    <div className="ph flex items-center gap-2">
-      <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">{p.title}</h3>
-      {p.status !== "building" && (
-        <ActionMenu
-          trigger={<IconBtn className="sm pmenu" icon="more" label="更多" tip={false} />}
-          onAction={act}
-          items={[
-            { id: "refresh", label: "更新", icon: "refresh" },
-            { id: "edit", label: "修改", icon: "edit" },
-            { id: "remove", label: "删除", icon: "trash", danger: true },
-          ]}
-        />
-      )}
-    </div>
-  );
-  if (p.status === "building")
-    return (
-      <div className={cn(CARD, wide(p))}>
-        {head}
-        {p.body ? <Md className="pbody flex-1 text-sm opacity-45" html={md(p.body)} /> : <div className="skeleton flex flex-1 flex-col gap-2.5">{[60, 90, 75].map((w) => <i key={w} className="h-3 animate-pulse rounded-full bg-foreground/[0.07]" style={{ width: `${w}%` }} />)}</div>}
-        <div className="pf text-xs text-muted-foreground"><TextShimmer>{`正在${p.body ? "更新" : "制作"}…`}</TextShimmer></div>
-      </div>
-    );
-  if (p.status === "error" && !p.body)
-    return (
-      <div className={cn(CARD, wide(p))}>
-        {head}
-        <div className="line err flex-1 text-sm text-destructive">没做成</div>
-        <div className="pf"><Btn kind="secondary" size="sm" onClick={() => act("refresh")}>重试</Btn></div>
-      </div>
-    );
+  const building = p.status === "building";
   return (
-    <div className={cn(CARD, wide(p))}>
-      {head}
-      <Md className="pbody flex-1 text-sm leading-6" html={md(p.body)} />
-      <div className="pf text-xs text-muted-foreground">{p.status === "error" && <span className="err text-destructive">更新失败 · </span>}{ago(p.updated_at)} · {CADENCE[p.cadence] ?? ""}</div>
-    </div>
+    <Card data-panel={p.id} data-status={p.status} className={cn("min-h-44", span(p))}>
+      <CardHeader>
+        <CardTitle className="truncate">{p.title}</CardTitle>
+        {!building && (
+          <CardAction>
+            <Menu>
+              <MenuTrigger render={<Button type="button" variant="ghost" size="icon-xs" aria-label="更多" />}><MoreHorizontalIcon /></MenuTrigger>
+              <MenuContent align="end">
+                <MenuItem onClick={() => act("refresh")}><RefreshIcon />更新</MenuItem>
+                <MenuItem onClick={() => act("edit")}><EditIcon />修改</MenuItem>
+                <MenuSeparator />
+                <MenuItem variant="destructive" onClick={() => act("remove")}><TrashIcon />删除</MenuItem>
+              </MenuContent>
+            </Menu>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardContent className="flex-1">
+        {building && !p.body ? (
+          <div className="flex flex-col gap-2.5">{["w-3/5", "w-11/12", "w-3/4"].map((w) => <Skeleton key={w} className={cn("h-3", w)} />)}</div>
+        ) : p.status === "error" && !p.body ? (
+          <p className="text-ui text-destructive">没做成</p>
+        ) : (
+          <div className={building ? "opacity-64" : undefined}><ResponseMarkdown text={p.body} /></div>
+        )}
+      </CardContent>
+      <CardFooter>
+        {p.status === "error" && !p.body && !building ? <Button variant="secondary" size="sm" onClick={() => act("refresh")}>重试</Button> : (
+          <span className="text-ui-sm text-muted-foreground">
+            {building ? <TextShimmer>{`正在${p.body ? "更新" : "制作"}…`}</TextShimmer>
+              : <>{p.status === "error" && <span className="text-destructive">更新失败 · </span>}{ago(p.updated_at)} · {CADENCE[p.cadence] ?? ""}</>}
+          </span>
+        )}
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -79,8 +82,8 @@ function EditPanel({ id, onClose }: { id: string | null; onClose: () => void }) 
   };
   return (
     <Sheet open={!!id} onClose={onClose} title="修改面板" small>
-      <textarea className="bigInput min-h-28 w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-[15px] outline-none transition focus:border-foreground/25 focus:ring-2 focus:ring-ring" autoFocus value={v} onChange={(e) => setV(e.target.value)} placeholder="如：只显示前 3 条" />
-      <div className="btns mt-3 flex justify-end"><Btn onClick={go}>修改</Btn></div>
+      <Textarea autoFocus value={v} onChange={(e) => setV(e.target.value)} placeholder="如：只显示前 3 条" aria-label="怎么改" />
+      <div className="flex justify-end"><Button onClick={go}>修改</Button></div>
     </Sheet>
   );
 }
@@ -102,12 +105,12 @@ export function NewPanelSheet() {
   };
   return (
     <Sheet open={newPanel} onClose={() => setNewPanel(false)} title="新建面板" small>
-      <p className="mb-3 px-0.5 text-sm text-muted-foreground">想看什么？Tomo 做好后会自动更新</p>
-      <textarea className="bigInput min-h-28 w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-[15px] outline-none transition focus:border-foreground/25 focus:ring-2 focus:ring-ring" id="np" autoFocus value={v} placeholder="如：比特币价格" onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && go()} />
-      <div className="examples mt-3 flex flex-wrap gap-2">{EXAMPLES.map((x) => <Btn key={x} kind="secondary" size="sm" onClick={() => setV(x)}>{x}</Btn>)}</div>
-      <div className="btns mt-4 flex items-center justify-end gap-3">
-        {err && <span className="msg err text-xs text-destructive">{err}</span>}
-        <Btn onClick={go}>创建</Btn>
+      <p className="text-ui text-muted-foreground">想看什么？Tomo 做好后会自动更新</p>
+      <Textarea id="np" autoFocus value={v} placeholder="如：比特币价格" aria-label="想看什么" onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && go()} />
+      <div className="flex flex-wrap gap-2">{EXAMPLES.map((x) => <Button key={x} variant="secondary" size="sm" onClick={() => setV(x)}>{x}</Button>)}</div>
+      <div className="flex items-center justify-end gap-3">
+        <Msg m={err ? { text: err, ok: false } : null} />
+        <Button id="npGo" onClick={go}>创建</Button>
       </div>
     </Sheet>
   );
@@ -122,14 +125,19 @@ export function HomeView() {
   return (
     <>
       <TopBar title="首页">
-        <IconBtn id="newPanelBtn" icon="add" label="新建面板" onClick={() => setNewPanel(true)} />
+        <ToolbarButton id="newPanelBtn" label="新建面板" onClick={() => setNewPanel(true)}><PlusIcon /></ToolbarButton>
       </TopBar>
       <Page>
-        <h1 className="hello mb-8 text-4xl font-semibold tracking-tight text-balance desk:text-5xl">{greeting()}{who ? `，${who}` : ""}</h1>
+        <h1 className="hello text-3xl font-semibold tracking-tight text-balance">{greeting()}{who ? `，${who}` : ""}</h1>
         {ps && (ps.length ? (
-          <div className="panels grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" id="panels">{ps.map((p) => <PanelCard key={p.id} p={p} onEdit={() => setEditing(p.id)} />)}</div>
+          <div id="panels" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{ps.map((p) => <PanelCard key={p.id} p={p} onEdit={() => setEditing(p.id)} />)}</div>
         ) : (
-          <Empty icon="dashboard" title="还没有面板" sub="想天天看的，做成面板放这里"><Btn className="mt-3" onClick={() => setNewPanel(true)}>新建面板</Btn></Empty>
+          <EmptyState variant="outline" size="lg">
+            <EmptyStateIcon><GridIcon /></EmptyStateIcon>
+            <EmptyStateTitle>还没有面板</EmptyStateTitle>
+            <EmptyStateDescription>想天天看的，做成面板放这里</EmptyStateDescription>
+            <EmptyStateActions><Button onClick={() => setNewPanel(true)}>新建面板</Button></EmptyStateActions>
+          </EmptyState>
         ))}
         <EditPanel id={editing} onClose={() => setEditing(null)} />
       </Page>

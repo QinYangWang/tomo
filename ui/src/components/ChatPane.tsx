@@ -1,21 +1,20 @@
-// A conversation: transcript + composer, on beUI's agent parts. Used by the chat view and by each project.
-import { Check, ChevronDown, ChevronRight, CircleAlert, Copy, LoaderCircle, RotateCcw, Search } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AgentDisclosure } from "@/components/agents/agent-disclosure";
-import type { AgentCodeLanguage } from "@/components/agents/agent-code";
-import { CodeBlock } from "@/components/agents/code-block";
-import { ThinkingShimmer } from "@/components/agents/loading-states/thinking-shimmer";
-import { Message, MessageContent } from "@/components/agents/message";
-import { MessageBubble, MessageBubbleContent } from "@/components/agents/message-bubble";
-import { MessageScroller } from "@/components/agents/message-scroller";
-import { PromptInput } from "@/components/agents/prompt-input";
-import { MorphPopover, MorphPopoverContent, MorphPopoverTrigger } from "@/components/motion/popover-morph";
+// A conversation: transcript + composer, on qinyang/ui's agent parts. Used by the chat view and by each project.
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { BotIcon, CheckIcon, CopyIcon, RefreshIcon } from "@/components/icons";
+import { AgentComposer } from "@/components/agent-composer";
+import { Alert, AlertAction, AlertDescription, AlertIcon, AlertContent } from "@/ui/alert";
+import { Button } from "@/ui/button";
+import { Message, MessageAction, MessageActions, MessageBubble, MessageContent } from "@/ui/message";
+import { MessageScroller } from "@/ui/message-scroller";
+import { EffortPicker, ModelPicker } from "@/ui/model-picker";
+import { ResponseMarkdown } from "@/ui/streaming-response";
+import { Terminal, TerminalOutput } from "@/ui/terminal-view";
+import { TextShimmer } from "@/ui/text-shimmer";
+import { WorkSummary, WorkSummaryStep, type WorkStepKind } from "@/ui/work-summary";
 import { cn } from "@/lib/utils";
-import { Icon } from "../icons.tsx";
-import { md, toolLabel } from "../lib.ts";
+import { toolLabel } from "../lib.ts";
 import { useAllModels, useSettings } from "../queries.ts";
 import { toast } from "../store.tsx";
-import { PROSE } from "./ui.tsx";
 import { useStream, type AgentState, type Item, type ModelRef, type Step, type Work } from "./stream.ts";
 
 const secs = (ms: number) => {
@@ -23,207 +22,115 @@ const secs = (ms: number) => {
   return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
 };
 
-/** Ticks once a second while a run is going, for the elapsed time. */
-function useNow(active: boolean) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [active]);
-  return now;
-}
+/** Tomo's tools mapped onto the step kinds the work summary draws icons for. */
+const KIND: Record<string, WorkStepKind> = {
+  bash: "execute", read: "read", write: "edit", edit: "edit", fetch_url: "fetch", search_history: "search", recall: "search",
+  forget: "delete", panel_remove: "delete", schedule_cancel: "delete", project_switch: "switch_mode",
+};
 
 function StepRow({ step }: { step: Step }) {
-  const [open, setOpen] = useState(false);
   const [name, hint] = toolLabel(step.name, step.args).split(" · ");
-  const canOpen = !!step.output?.trim();
+  const status = step.status === "active" ? "in_progress" : step.status === "error" ? "failed" : "completed";
+  const out = step.output?.trim();
   return (
-    <li className="step">
-      <button
-        type="button" disabled={!canOpen} onClick={() => setOpen(!open)} aria-expanded={canOpen ? open : undefined}
-        className="grid w-full grid-cols-[1rem_auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-1.5 py-1 text-left text-[13px] transition-colors enabled:hover:bg-muted/70"
-      >
-        <span className="grid size-4 place-items-center">
-          {step.status === "active" ? <LoaderCircle className="size-3.5 animate-spin text-muted-foreground" /> : step.status === "error" ? <CircleAlert className="size-3.5 text-destructive" /> : <Check className="size-3.5 text-muted-foreground/70" />}
-        </span>
-        <span className={cn("font-medium", step.status === "error" ? "text-destructive" : "text-foreground/85")}>{name}</span>
-        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground/75">{hint ?? ""}</span>
-        {canOpen ? <ChevronRight className={cn("size-3.5 text-muted-foreground/60 transition-transform", open && "rotate-90")} /> : <span />}
-      </button>
-      {canOpen && (
-        <AgentDisclosure open={open}>
-          <pre className="ml-8 mt-1 mb-1.5 max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/70 px-3 py-2 font-mono text-xs leading-5 text-muted-foreground">{step.output}</pre>
-        </AgentDisclosure>
-      )}
-    </li>
+    <WorkSummaryStep className="step" kind={KIND[step.name] ?? "other"} status={status} title={name} detail={hint}>
+      {out ? <Terminal variant="embedded"><TerminalOutput text={out} className="max-h-32" /></Terminal> : null}
+    </WorkSummaryStep>
   );
 }
 
 /** What the agent did between messages: its thinking and its tool calls, open while it works. */
 function WorkBlock({ item }: { item: Work }) {
-  const now = useNow(!item.done);
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const open = userOpen ?? !item.done;
   const current = item.steps.findLast((x) => x.status === "active");
   const errors = item.steps.filter((x) => x.status === "error").length;
-  const took = (item.ended ?? now) - item.started;
+  const took = (item.ended ?? Date.now()) - item.started;
   const parts = [item.thinking.trim() && "思考", item.steps.length && `${item.steps.length} 个步骤`, errors && `${errors} 个出错`].filter(Boolean).join("，");
+  const label = item.done ? `${parts || "处理"} · ${secs(took)}` : current ? `正在${toolLabel(current.name, current.args).split(" · ")[0]}…` : item.thinking ? "正在思考…" : "正在处理…";
   return (
-    <div className={cn("work w-full text-sm", item.done && "done")}>
-      <button type="button" onClick={() => setUserOpen(!open)} aria-expanded={open} className="flex max-w-full items-center gap-1.5 rounded-md py-1 text-left text-muted-foreground transition-colors hover:text-foreground">
-        {item.done ? (
-          <span className="truncate">{parts || "处理"} · {secs(took)}</span>
-        ) : (
-          <ThinkingShimmer>{current ? `正在${toolLabel(current.name, current.args).split(" · ")[0]}…` : item.thinking ? "正在思考…" : "正在处理…"}</ThinkingShimmer>
-        )}
-        {!item.done && took > 2000 && <span className="text-xs tabular-nums text-muted-foreground/60">{secs(took)}</span>}
-        <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", !open && "-rotate-90")} />
-      </button>
-      <AgentDisclosure open={open}>
-        <div className="mt-1 ml-[3px] border-l border-border pl-3">
-          {item.thinking.trim() && <p className="thinking mb-1.5 max-h-48 overflow-auto whitespace-pre-wrap py-1 text-[13px] leading-5 text-muted-foreground">{item.thinking.trim()}</p>}
-          {!!item.steps.length && <ul className="flex flex-col">{item.steps.map((x) => <StepRow key={x.id} step={x} />)}</ul>}
-        </div>
-      </AgentDisclosure>
-    </div>
+    <WorkSummary className={cn("work", item.done && "done")} running={!item.done} startedAt={item.started} label={label} open={open} onOpenChange={setUserOpen}>
+      {item.thinking.trim() && <li className="thinking py-0.5 text-ui text-pretty whitespace-pre-wrap text-muted-foreground italic">{item.thinking.trim()}</li>}
+      {item.steps.map((x) => <StepRow key={x.id} step={x} />)}
+    </WorkSummary>
   );
 }
 
-const LANGS: Record<string, AgentCodeLanguage> = { ts: "typescript", typescript: "typescript", js: "typescript", javascript: "typescript", tsx: "tsx", jsx: "tsx", sh: "bash", shell: "bash", bash: "bash", zsh: "bash", console: "bash", json: "json", diff: "diff" };
-const lang = (l: string): AgentCodeLanguage => LANGS[l.toLowerCase()] ?? "text";
-
-/** Assistant text: prose through the markdown renderer, fenced code through beUI's code block. */
-function AiText({ text, live }: { text: string; live?: boolean }) {
-  const parts: ReactNode[] = [];
-  // While streaming, an unclosed fence still renders as code.
-  const src = live && (text.match(/```/g)?.length ?? 0) % 2 ? `${text}\n\`\`\`` : text;
-  const re = /```(\w*)\n?([\s\S]*?)```/g;
-  let at = 0;
-  for (let m; (m = re.exec(src)); at = re.lastIndex) {
-    if (m.index > at) parts.push(<div key={at} className={PROSE} dangerouslySetInnerHTML={{ __html: md(src.slice(at, m.index)) }} />);
-    parts.push(<CodeBlock key={m.index} code={m[2]!.replace(/\n$/, "")} language={lang(m[1]!)} copyable className="my-2 w-full" />);
-  }
-  if (at < src.length) parts.push(<div key={at} className={PROSE} dangerouslySetInnerHTML={{ __html: md(src.slice(at)) }} />);
-  return <>{parts}</>;
-}
-
-function CopyBtn({ text }: { text: string }) {
+function CopyAction({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
-    <button
-      type="button" aria-label="复制" title="复制"
+    <MessageAction
+      className="copyBtn" label={done ? "已复制" : "复制"}
       onClick={() => navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }, () => toast("复制失败"))}
-      className="copyBtn grid size-7 place-items-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
     >
-      {done ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-    </button>
+      {done ? <CheckIcon /> : <CopyIcon />}
+    </MessageAction>
   );
 }
 
-const LEVELS = [{ v: "off", l: "关" }, { v: "low", l: "低" }, { v: "medium", l: "中" }, { v: "high", l: "高" }];
+const LEVELS = [{ value: "off", label: "关" }, { value: "low", label: "低" }, { value: "medium", label: "中" }, { value: "high", label: "高" }];
+const key = (m?: ModelRef) => (m ? `${m.provider}/${m.modelId}` : "");
 
-/** The composer's model chip: this conversation's model and how hard it thinks. */
-function ModelPicker({ agent, busy, onChange }: { agent: AgentState; busy: boolean; onChange: (c: { model?: ModelRef; thinkingLevel?: string }) => void }) {
+/** The composer's pickers: this conversation's model and, for models that reason, how hard it thinks. */
+function Pickers({ agent, busy, onChange }: { agent: AgentState; busy: boolean; onChange: (c: { model?: ModelRef; thinkingLevel?: string }) => void }) {
   const fallback = useSettings().data?.model;
   const { data: groups = [] } = useAllModels();
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
   const cur = agent.model ?? fallback;
   const info = groups.find((g) => g.provider === cur?.provider)?.models.find((m) => m.id === cur?.modelId);
-  const label = info?.name ?? cur?.modelId.split("/").pop() ?? "选择模型";
-  const level = agent.thinkingLevel ?? "off";
-  const shown = useMemo(() => {
-    const n = q.trim().toLowerCase();
-    const isCur = (g: string, m: string) => g === cur?.provider && m === cur?.modelId;
-    // The current model leads the list, so it is visible without scrolling or searching.
-    return groups
-      .map((g) => ({ ...g, models: n ? g.models.filter((m) => `${m.id} ${m.name} ${g.label}`.toLowerCase().includes(n)) : [...g.models].sort((a, b) => +isCur(g.provider, b.id) - +isCur(g.provider, a.id)) }))
-      .filter((g) => g.models.length)
-      .sort((a, b) => +(b.provider === cur?.provider) - +(a.provider === cur?.provider));
-  }, [groups, q, cur?.provider, cur?.modelId]);
+  // The current model leads its group and its group leads the list, so it shows without scrolling.
+  const models = useMemo(() => {
+    const ordered = [...groups].sort((a, b) => +(b.provider === cur?.provider) - +(a.provider === cur?.provider));
+    const list: { id: string; name: string; provider?: string; description?: string }[] = ordered.flatMap((g) =>
+      [...g.models]
+        .sort((a, b) => +(b.id === cur?.modelId) - +(a.id === cur?.modelId))
+        .map((m) => ({ id: `${g.provider}/${m.id}`, name: m.name, provider: groups.length > 1 ? g.label : undefined, description: m.reasoning ? "可思考" : undefined })),
+    );
+    // A model the lists no longer offer still shows on the chip.
+    if (cur && !list.some((m) => m.id === key(cur))) list.unshift({ id: key(cur), name: cur.modelId.split("/").pop()! });
+    return list;
+  }, [groups, cur?.provider, cur?.modelId]);
+
+  const pick = (v: string) => {
+    const i = v.indexOf("/");
+    const next = { provider: v.slice(0, i), modelId: v.slice(i + 1) };
+    if (key(next) !== key(cur)) onChange({ model: next });
+  };
   return (
-    <MorphPopover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
-      <MorphPopoverTrigger>
-        <button type="button" disabled={busy} aria-label="选择模型" className="cChip inline-flex max-w-[60vw] items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground disabled:opacity-60 desk:max-w-64">
-          <Icon name="ai" size={14} />
-          <span className="truncate">{label}</span>
-          {info?.reasoning && level !== "off" && <span className="rounded bg-muted px-1 text-[10px]">思考{LEVELS.find((x) => x.v === level)?.l ?? ""}</span>}
-          <ChevronDown className="size-3 shrink-0" />
-        </button>
-      </MorphPopoverTrigger>
-      <MorphPopoverContent side="top" align="start" sideOffset={8} radius={14} className="modelMenu w-[min(20rem,calc(100vw-2rem))] p-0">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <Search className="size-3.5 text-muted-foreground" />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索模型" aria-label="搜索模型" className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground/60" />
-        </div>
-        <div className="max-h-72 overflow-y-auto p-1.5">
-          {!groups.length && <p className="px-2.5 py-3 text-sm text-muted-foreground">还没有可用的模型，先去设置里填一个密钥。</p>}
-          {groups.length > 0 && !shown.length && <p className="px-2.5 py-3 text-sm text-muted-foreground">没有找到</p>}
-          {shown.map((g) => (
-            <div key={g.provider} className="mb-1 last:mb-0">
-              {groups.length > 1 && <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground/70">{g.label}</div>}
-              {g.models.slice(0, q ? 80 : 40).map((m) => {
-                const on = cur?.provider === g.provider && cur?.modelId === m.id;
-                return (
-                  <button
-                    key={m.id} type="button" data-model={`${g.provider}/${m.id}`}
-                    onClick={() => { if (!on) onChange({ model: { provider: g.provider, modelId: m.id } }); setOpen(false); setQ(""); }}
-                    className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted", on && "bg-muted/60")}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{m.name}</span>
-                    {m.reasoning && <span className="text-[10px] text-muted-foreground/70">可思考</span>}
-                    {on && <Check className="size-3.5 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-        {info?.reasoning && (
-          <div className="flex items-center gap-2 border-t border-border px-3 py-2">
-            <span className="text-xs text-muted-foreground">思考</span>
-            <div role="radiogroup" aria-label="思考强度" className="ml-auto flex rounded-lg bg-muted p-0.5">
-              {LEVELS.map((x) => (
-                <button
-                  key={x.v} type="button" role="radio" aria-checked={level === x.v} onClick={() => onChange({ thinkingLevel: x.v })}
-                  className={cn("rounded-md px-2.5 py-0.5 text-xs transition-colors", level === x.v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
-                >{x.l}</button>
-              ))}
-            </div>
-          </div>
-        )}
-      </MorphPopoverContent>
-    </MorphPopover>
+    <>
+      {/* TODO(qinyang-gap): ModelPicker has no search field; OpenRouter lists hundreds of models (typeahead only). */}
+      <ModelPicker
+        className="cChip" label="模型" heading={groups.length ? undefined : "还没有可用的模型，先去设置里填一个密钥。"} placeholder="选择模型" icon={<BotIcon />}
+        models={models} value={key(cur) || undefined} onValueChange={pick} disabled={busy}
+      />
+      {info?.reasoning && (
+        <EffortPicker label="思考" heading="思考" levels={LEVELS} value={agent.thinkingLevel ?? "off"} onValueChange={(v) => onChange({ thinkingLevel: v })} disabled={busy} align="end" />
+      )}
+    </>
   );
 }
 
-function Row({ it, i, last, retry }: { it: Item; i: number; last: boolean; retry: () => void }) {
+function Row({ it, last, retry }: { it: Item; last: boolean; retry: () => void }) {
   if (it.k === "work") return <WorkBlock item={it} />;
   if (it.k === "error")
     return (
-      <div className={cn("runError flex items-center gap-2 self-start rounded-lg px-3 py-2 text-sm", it.stopped ? "bg-muted text-muted-foreground" : "bg-destructive/10 text-destructive")}>
-        {!it.stopped && <CircleAlert className="size-4 shrink-0" />}
-        <span className="min-w-0 break-words">{it.text}</span>
-        {last && (
-          <button type="button" onClick={retry} className="retryBtn ml-1 inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium hover:bg-foreground/[0.06]">
-            <RotateCcw className="size-3" />重试
-          </button>
-        )}
-      </div>
+      <Alert variant={it.stopped ? "default" : "destructive"} size="sm" className="runError">
+        {!it.stopped && <AlertIcon />}
+        <AlertContent><AlertDescription>{it.text}</AlertDescription></AlertContent>
+        {last && <AlertAction><Button className="retryBtn" variant="ghost" size="xs" onClick={retry}><RefreshIcon data-icon="inline-start" />重试</Button></AlertAction>}
+      </Alert>
     );
   if (it.k === "ai")
     return (
-      <Message from="assistant" className="group">
-        <MessageContent>
-          <div className="b ai w-full" data-entry={it.id}><AiText text={it.text} live={it.live} /></div>
-          {!it.live && it.text && <div className="-ml-1.5 mt-0.5 flex opacity-100 transition-opacity desk:opacity-0 desk:group-hover:opacity-100 desk:focus-within:opacity-100"><CopyBtn text={it.text} /></div>}
-        </MessageContent>
+      <Message from="assistant" aria-label="Tomo">
+        <div className="flex w-full min-w-0 flex-col gap-1">
+          <div className="b ai" data-entry={it.id}><ResponseMarkdown text={it.text} caret={!!it.live} /></div>
+          {!it.live && it.text && <MessageActions className="-ms-1.5"><CopyAction text={it.text} /></MessageActions>}
+        </div>
       </Message>
     );
   return (
-    <Message from="user" animateIn={last}>
-      <MessageContent><MessageBubble variant="soft" align="end" className="b me" data-entry={it.id}><MessageBubbleContent className="whitespace-pre-wrap text-[15px]">{it.text}</MessageBubbleContent></MessageBubble></MessageContent>
+    <Message from="user" animateIn={last} aria-label="你">
+      <MessageContent><MessageBubble tone="muted" className="b me whitespace-pre-wrap" data-entry={it.id}>{it.text}</MessageBubble></MessageContent>
     </Message>
   );
 }
@@ -231,9 +138,10 @@ function Row({ it, i, last, retry }: { it: Item; i: number; last: boolean; retry
 export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; placeholder: string; empty: ReactNode; onSent?: () => void }) {
   const { items, busy, loaded, agent, lastUser, send, stop, configure } = useStream(conv);
   const [text, setText] = useState("");
+  const input = useRef<HTMLTextAreaElement>(null);
   const submit = (v: string) => {
-    if (!v.trim() || !send(v.trim())) return;
-    setText("");
+    // The composer clears itself after submit; put the words back if they could not be sent.
+    if (!v.trim() || !send(v.trim())) return void setTimeout(() => setText(v), 0);
     onSent?.();
   };
   // The thinking indicator shows only until the run has something of its own on screen.
@@ -241,17 +149,19 @@ export function ChatPane({ conv, placeholder, empty, onSent }: { conv?: string; 
   const waiting = busy && (!tail || tail.k === "me" || tail.k === "error");
   return (
     <div id="chatPane" data-busy={busy} className="flex min-h-0 flex-1 flex-col">
-      <MessageScroller id="thread" followOutput busy={busy} label="对话" className="min-h-0 flex-1" contentClassName="threadInner mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-6 pb-8 desk:px-7" contentProps={{ id: "log" } as object}>
-        {loaded && !items.length && !busy && empty}
-        {items.map((it, i) => <Row key={i} it={it} i={i} last={i === items.length - 1 && !busy} retry={() => lastUser && send(lastUser)} />)}
-        {waiting && <div className="typing self-start px-0.5 text-sm"><ThinkingShimmer>正在想…</ThinkingShimmer></div>}
+      <MessageScroller id="thread" className="min-h-0 flex-1" jumpButton="icon" jumpLabel="回到最新" newLabel="有新消息" contentClassName="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-6 pb-8 md:px-7">
+        <div id="log" className="flex flex-col gap-5">
+          {loaded && !items.length && !busy && empty}
+          {items.map((it, i) => <Row key={i} it={it} last={i === items.length - 1 && !busy} retry={() => lastUser && send(lastUser)} />)}
+          {waiting && <div className="typing self-start text-ui"><TextShimmer>正在想…</TextShimmer></div>}
+        </div>
       </MessageScroller>
-      <div id="composer" className="mx-auto w-full max-w-3xl px-3 pb-[max(12px,env(safe-area-inset-bottom))] desk:px-7 desk:pb-5">
-        <PromptInput
-          id="t" value={text} onValueChange={setText} onSubmit={submit} placeholder={placeholder} aria-label={placeholder} minRows={1} maxRows={8}
-          loading={busy} onStop={stop}
-          className="composerBox bg-card shadow-[0_8px_30px_-12px_rgb(0_0_0/0.12)] [&_textarea]:text-[15px] max-desk:[&_textarea]:text-base"
-          leadingAction={loaded && <ModelPicker agent={agent} busy={busy} onChange={configure} />}
+      <div id="composer" className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3 md:px-7 md:pb-5">
+        {/* TODO(qinyang-gap): AgentComposer always shows an attach button and has fixed English labels (Send, Stop, Attach files, Message). */}
+        <AgentComposer
+          ref={input} value={text} onValueChange={setText} onSubmit={submit} placeholder={placeholder} aria-label={placeholder}
+          busy={busy} onStop={stop}
+          toolbarEnd={loaded ? <Pickers agent={agent} busy={busy} onChange={configure} /> : undefined}
         />
       </div>
     </div>

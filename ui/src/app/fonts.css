@@ -1,0 +1,13 @@
+/*
+ * Self-hosted fonts for the theme's --font-sans, --font-mono and --font-serif stacks.
+ * Each face is split by unicode-range, so a page only downloads the glyph sets it uses
+ * (CJK glyphs load in small chunks, only for the characters on the page).
+ * Import once in the root layout. Without it the theme falls back to system fonts.
+ */
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/inter/wght-italic.css";
+@import "@fontsource-variable/noto-sans-sc/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource-variable/newsreader/wght.css";
+@import "@fontsource-variable/newsreader/wght-italic.css";
+@import "@fontsource-variable/noto-serif-sc/wght.css";

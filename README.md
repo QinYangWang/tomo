@@ -54,7 +54,7 @@ src/
   channels/               telegram · discord · slack
   scheduler/loop.ts       定时任务触发
   server/http.ts          REST + WebSocket
-ui/                       React 客户端（Vite + TanStack Router/Query + React Aria），构建到 ui/dist 由 Hono 托管
+ui/                       React 客户端（Vite + TanStack Router/Query + qinyang/ui 组件库，原样安装在 ui/src/ui），构建到 ui/dist 由 Hono 托管
 test/smoke.test.ts        faux 模型端到端：工具调用→记忆→投递→重启恢复
 ```
 

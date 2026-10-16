@@ -1,63 +1,53 @@
 // Left side of the shell: the icon rail (one page per icon; bottom tabs on phones) and, for pages that have one, their own list.
 import { Link, useNavigate } from "@tanstack/react-router";
-import { SharedLayoutBg } from "@/components/motion/shared-layout-bg";
-import { Tooltip } from "@/components/motion/tooltip";
-import { cn } from "@/lib/utils";
-import { Icon, type IconName } from "../icons.tsx";
+import type { ReactNode } from "react";
+import { BotIcon, CalendarDaysIcon, ChatIcon, FolderIcon, HistoryIcon, HomeIcon, LightbulbIcon, LockIcon, LogOutIcon, PlusIcon, ServerIcon, SettingsIcon, SidebarIcon, SparklesIcon, UserIcon, BoltIcon } from "@/components/icons";
+import { Drawer, DrawerContent, DrawerTitle } from "@/ui/drawer";
+import { IconRail, IconRailItem, IconRailSeparator, IconRailSpacer } from "@/ui/icon-rail";
+import { ScrollArea } from "@/ui/scroll-area";
+import { SettingsNav, SettingsNavItem } from "@/ui/settings-section";
+import { ThreadList, ThreadListGroup, ThreadListItem } from "@/ui/thread-list-item";
 import { ago, briefLine, pname } from "../lib.ts";
 import { useConversations, useProjects } from "../queries.ts";
 import { GROUPS, logout, PAGES } from "../settings/shared.ts";
-import { isPhone, useShell } from "../store.tsx";
+import { usePhone, useShell } from "../store.tsx";
 import type { Project } from "../types.ts";
-import { ProjectMenu, RenameBox, useNewProject } from "../views/Projects.tsx";
-import { IconBtn } from "./kit.tsx";
+import { ProjectMenu, useNewProject } from "../views/Projects.tsx";
+import { ToolbarButton } from "./parts.tsx";
 
 export type Section = "home" | "chat" | "projects" | "schedules" | "memory" | "skills" | "settings";
 /** Pages that carry a list beside them; the rest use the full width. */
 export const HAS_SIDE: Section[] = ["chat", "projects", "settings"];
-const NAV: [Section, string, IconName, string, boolean?][] = [
-  ["home", "首页", "home", "/"],
-  ["chat", "对话", "chat", "/chat"],
-  ["projects", "项目", "projects", "/projects"],
-  ["schedules", "定时", "clock", "/schedules", true],
-  ["memory", "记忆", "brain", "/memory", true],
-  ["skills", "技能", "skill", "/skills", true],
+const NAV: [Section, string, ReactNode, string, boolean?][] = [
+  ["home", "首页", <HomeIcon />, "/"],
+  ["chat", "对话", <ChatIcon />, "/chat"],
+  ["projects", "项目", <FolderIcon />, "/projects"],
+  ["schedules", "定时", <CalendarDaysIcon />, "/schedules", true],
+  ["memory", "记忆", <LightbulbIcon />, "/memory", true],
+  ["skills", "技能", <BoltIcon />, "/skills", true],
 ];
+/** Settings pages and the rail's tool pages share these glyphs (solid family, as navigation). */
+export const PAGE_ICON: Record<string, ReactNode> = {
+  profile: <UserIcon />, accounts: <ChatIcon />, models: <BotIcon />, storage: <ServerIcon />, backup: <HistoryIcon />, security: <LockIcon />, about: <SparklesIcon />,
+  schedules: <CalendarDaysIcon />, memory: <LightbulbIcon />, skills: <BoltIcon />,
+};
 
-const RAIL_ITEM =
-  "relative grid size-10 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground " +
-  "max-desk:flex max-desk:h-14 max-desk:w-auto max-desk:flex-1 max-desk:flex-col max-desk:gap-0.5 max-desk:rounded-none max-desk:hover:bg-transparent";
-const RAIL_ON = "on bg-foreground/[0.06] text-foreground max-desk:bg-transparent";
-// Phones show the labels under the icons, so the hover tooltip would only linger after a tap.
-const Tip = ({ content, children }: { content: string; children: React.ReactElement }) => (isPhone() ? children : <Tooltip content={content} side="right">{children}</Tooltip>);
-const RailLabel = ({ children }: { children: string }) => <span className="rl text-[10px] font-medium desk:hidden">{children}</span>;
-
+/** The app rail: a column on wide screens, the bottom tab bar on phones (where 定时/记忆/技能 live in settings). */
 export function Rail({ section, onSettings }: { section: Section; onSettings: () => void }) {
+  const phone = usePhone();
+  const items = phone ? NAV.filter((n) => !n[4]) : NAV;
   return (
-    <nav
-      id="rail" aria-label="导航"
-      className="z-30 flex w-16 shrink-0 flex-col items-center justify-between border-r border-border py-3 max-desk:bg-background/80 max-desk:backdrop-blur-xl max-desk:fixed max-desk:inset-x-0 max-desk:bottom-0 max-desk:h-[calc(64px+env(safe-area-inset-bottom))] max-desk:w-full max-desk:flex-row max-desk:items-start max-desk:border-t max-desk:border-r-0 max-desk:py-0 max-desk:pb-[env(safe-area-inset-bottom)]"
-    >
-      <div className="railMain flex flex-col items-center gap-1 max-desk:flex-[3] max-desk:flex-row max-desk:gap-0">
-        {NAV.map(([k, label, icon, to, extra], i) => (
-          <span key={k} className={cn("railSlot flex flex-col items-center gap-1 max-desk:flex-1", extra && "max-desk:hidden")}>
-            {i === 3 && <span className="railSep my-2 h-px w-6 bg-border max-desk:hidden" />}
-            <Tip content={label}>
-              <Link to={to} data-view={k} aria-label={label} className={cn(RAIL_ITEM, section === k && RAIL_ON, extra && "railExtra")}>
-                <Icon name={icon} /><RailLabel>{label}</RailLabel>
-              </Link>
-            </Tip>
-          </span>
-        ))}
-      </div>
-      <span className="flex max-desk:flex-1 max-desk:justify-center">
-      <Tip content="设置">
-        <button type="button" id="setBtn" aria-label="设置" className={cn(RAIL_ITEM, "max-desk:flex-1", section === "settings" && RAIL_ON)} onClick={onSettings}>
-          <Icon name="settings" /><RailLabel>设置</RailLabel>
-        </button>
-      </Tip>
-      </span>
-    </nav>
+    // TODO(qinyang-gap): bottom tab bar with a label under each icon (IconRail horizontal has icons and tooltips only).
+    <IconRail id="rail" aria-label="导航" orientation={phone ? "horizontal" : "vertical"} className={phone ? "justify-around" : undefined}>
+      {items.map(([k, label, icon, to], i) => (
+        <span key={k} className="contents">
+          {!phone && i === 3 && <IconRailSeparator />}
+          <IconRailItem label={label} icon={icon} active={section === k} render={<Link to={to} data-view={k} />} />
+        </span>
+      ))}
+      {!phone && <IconRailSpacer />}
+      <IconRailItem id="setBtn" label="设置" icon={<SettingsIcon />} active={section === "settings"} onClick={onSettings} />
+    </IconRail>
   );
 }
 
@@ -69,52 +59,48 @@ function byDay(list: Project[]) {
   return g.filter(([, ps]) => ps.length);
 }
 
-/** Rows share one hover highlight that glides between them (beUI shared layout). */
-const Rows = ({ children }: { children: React.ReactNode }) => (
-  <SharedLayoutBg className="sRows gap-px" inset={0} pillClassName="rounded-xl bg-foreground/[0.05]">{children}</SharedLayoutBg>
-);
-const ROW = "sRow flex min-w-0 cursor-pointer flex-col gap-0.5 rounded-xl px-3 py-2 text-foreground [&>.z-10]:flex [&>.z-10]:min-w-0 [&>.z-10]:flex-col [&>.z-10]:gap-0.5";
-const ROW_ON = "on bg-foreground/[0.07]";
-const Title = ({ children, one }: { children: React.ReactNode; one?: boolean }) => (
-  <span className={cn("sTitle truncate text-[13.5px] leading-5", one ? "one flex items-center gap-2 [&_svg]:text-muted-foreground" : "pr-6")}>{children}</span>
-);
-const Meta = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <span className={cn("sMeta flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground", className)}>{children}</span>
-);
-const GroupTitle = ({ children }: { children: string }) => <div className="gtitle px-3 pt-4 pb-1.5 text-[11px] font-medium text-muted-foreground">{children}</div>;
-const Note = ({ children }: { children: string }) => <div className="sNote px-3 py-3 text-xs text-muted-foreground">{children}</div>;
-
-function SideHead({ title, children }: { title: string; children?: React.ReactNode }) {
+/** Title row of the list, level with the main pane's top bar. */
+function SideHead({ title, children }: { title: string; children?: ReactNode }) {
   const { toggleSide } = useShell();
+  const phone = usePhone();
   return (
-    <div className="sideHead flex h-14 shrink-0 items-center gap-1 px-4">
-      <span className="brand flex-1 text-[15px] font-semibold tracking-tight">{title}</span>
+    <div className="mt-0.75 flex h-12 shrink-0 items-center gap-1 ps-4 pe-2">
+      <span className="min-w-0 flex-1 truncate text-ui-lg font-semibold">{title}</span>
       {children}
-      <IconBtn id="sideBtn" icon="sidebar" label="收起" size={17} onClick={toggleSide} />
+      {!phone && <ToolbarButton id="sideBtn" label="收起" onClick={toggleSide}><SidebarIcon /></ToolbarButton>}
     </div>
   );
 }
-const List = ({ children }: { children: React.ReactNode }) => <div className="sideList flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-6">{children}</div>;
+const List = ({ children }: { children: ReactNode }) => (
+  <ScrollArea className="min-h-0 flex-1" viewportClassName="px-2 pb-6">{children}</ScrollArea>
+);
+const Note = ({ children }: { children: string }) => <p className="px-2 py-3 text-ui-sm text-muted-foreground">{children}</p>;
 
 function ChatList() {
-  const { chat, closeMobileSide } = useShell();
+  const { chat } = useShell();
+  const nav = useNavigate();
   const convs = useConversations().data ?? [];
   const rows = convs.length ? convs : [{ id: "home", key: "home", platform: "web" }];
   return (
     <>
       <SideHead title="对话" />
       <List>
-        <Rows>
-          {rows.map((v) => {
-            const id = v.key === "home" ? "home" : v.id;
-            return (
-              <Link key={id} to="/chat" search={id === "home" ? {} : { c: id }} className={cn(ROW, chat.conv === id && ROW_ON)} onClick={() => isPhone() && closeMobileSide()}>
-                <Title>{v.key === "home" ? "私聊" : v.key}</Title>
-                <Meta><Icon name={v.key === "home" ? "user" : "chat"} size={13} /><span className="ell truncate">{v.key === "home" ? "各平台的私聊都在这" : v.platform}</span></Meta>
-              </Link>
-            );
-          })}
-        </Rows>
+        {/* TODO(qinyang-gap): ThreadListItem has no free-form subtitle line (needed for "各平台的私聊都在这" / the platform name). */}
+        <ThreadList>
+          <ThreadListGroup label="全部">
+            {rows.map((v) => {
+              const id = v.key === "home" ? "home" : v.id;
+              return (
+                <ThreadListItem
+                  key={id} data-conv={id} title={v.key === "home" ? "私聊" : v.key} active={chat.conv === id}
+                  icon={v.key === "home" ? <UserIcon /> : <ChatIcon />}
+                  trailing={v.key === "home" ? undefined : <span className="text-ui-xs text-muted-foreground">{v.platform}</span>}
+                  onClick={() => nav({ to: "/chat", search: id === "home" ? {} : { c: id } })}
+                />
+              );
+            })}
+          </ThreadListGroup>
+        </ThreadList>
         <Note>群聊会各自出现在这里</Note>
       </List>
     </>
@@ -122,88 +108,77 @@ function ChatList() {
 }
 
 function ProjectList({ current }: { current?: string }) {
-  const { closeMobileSide, renaming } = useShell();
   const nav = useNavigate();
   const newProject = useNewProject();
   const projects = useProjects().data ?? [];
   const active = projects.filter((p) => p.status === "active").sort((a, b) => b.updated_at - a.updated_at);
   const archived = projects.filter((p) => p.status !== "active");
   const row = (p: Project) => (
-    <div
-      key={p.id} className={cn(ROW, "pRow group/row relative", p.id === current && ROW_ON)}
+    <ThreadListItem
+      key={p.id} data-project={p.id} title={pname(p)} repo={briefLine(p.brief) || undefined} active={p.id === current} icon={<FolderIcon />}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button, input")) return;
+        // Clicks from the row's own menu (and its portalled popup) are not row clicks.
+        if (!e.currentTarget.contains(e.target as Node) || (e.target as HTMLElement).closest("[data-slot=button]")) return;
         nav({ to: "/projects/$id", params: { id: p.id } });
-        if (isPhone()) closeMobileSide();
       }}
-    >
-      <Title>{renaming === p.id && p.id !== current ? <RenameBox p={p} /> : pname(p)}</Title>
-      <Meta><span className="ell min-w-0 flex-1 truncate">{briefLine(p.brief) || " "}</span><span className={cn("when shrink-0", "desk:group-hover/row:invisible", p.id === current && "desk:invisible")}>{ago(p.updated_at)}</span></Meta>
-      <ProjectMenu p={p} />
-    </div>
+      trailing={
+        <>
+          <span className="text-ui-xs text-muted-foreground tabular-nums group-hover/thread:hidden group-data-active/thread:hidden pointer-coarse:hidden">{ago(p.updated_at)}</span>
+          <span className="hidden group-hover/thread:flex group-data-active/thread:flex pointer-coarse:flex"><ProjectMenu p={p} trigger="row" /></span>
+        </>
+      }
+    />
   );
   return (
     <>
       <SideHead title="项目">
-        <IconBtn id="newProject" icon="add" label="新建项目" onClick={() => (newProject(), isPhone() && closeMobileSide())} />
+        <ToolbarButton id="newProject" label="新建项目" onClick={() => newProject()}><PlusIcon /></ToolbarButton>
       </SideHead>
       <List>
-        {byDay(active).map(([label, ps]) => (
-          <div key={label} className="sGroup"><GroupTitle>{label}</GroupTitle><Rows>{ps.map(row)}</Rows></div>
-        ))}
+        <ThreadList>
+          {byDay(active).map(([label, ps]) => <ThreadListGroup key={label} label={label}>{ps.map(row)}</ThreadListGroup>)}
+          {!!archived.length && <ThreadListGroup label="已归档" data-archived="">{archived.map(row)}</ThreadListGroup>}
+        </ThreadList>
         {!active.length && <Note>还没有项目</Note>}
-        {!!archived.length && <div className="sGroup"><GroupTitle>已归档</GroupTitle><Rows>{archived.map(row)}</Rows></div>}
       </List>
     </>
   );
 }
 
-function SettingsNav({ page }: { page?: string }) {
-  const { closeMobileSide } = useShell();
+function SettingsList({ page }: { page?: string }) {
   return (
     <>
       <SideHead title="设置" />
       <List>
-        {GROUPS.map((g, i) => (
-          <div key={i} className={i ? "mt-3" : ""}>
-            <Rows>
-              {g.map((k) => (
-                <Link key={k} to="/settings/$page" params={{ page: k }} data-s={k} className={cn(ROW, page === k && ROW_ON)} onClick={() => isPhone() && closeMobileSide()}>
-                  <Title one><Icon name={PAGES[k]![1]} size={16} />{PAGES[k]![0]}</Title>
-                  <Meta className="pl-6">{PAGES[k]![2]}</Meta>
-                </Link>
-              ))}
-            </Rows>
-          </div>
-        ))}
-        <button type="button" id="logoutBtn" onClick={logout} className={cn(ROW, "sLogout mt-3 text-left hover:bg-foreground/[0.05]")}>
-          <Title one><Icon name="logout" size={16} />退出登录</Title>
-        </button>
+        <SettingsNav className="flex-col">
+          {GROUPS.flat().map((k) => (
+            <SettingsNavItem key={k} isActive={page === k} icon={PAGE_ICON[k]} data-s={k} render={<Link to="/settings/$page" params={{ page: k }} />}>{PAGES[k]![0]}</SettingsNavItem>
+          ))}
+          <SettingsNavItem id="logoutBtn" icon={<LogOutIcon />} render={<button type="button" onClick={logout} />}>退出登录</SettingsNavItem>
+        </SettingsNav>
       </List>
     </>
   );
 }
 
-export function Sidebar({ section, current, page }: { section: Section; current?: string; page?: string }) {
+function SideContent({ section, current, page }: { section: Section; current?: string; page?: string }) {
+  return section === "chat" ? <ChatList /> : section === "projects" ? <ProjectList current={current} /> : <SettingsList page={page} />;
+}
+
+/** The page's list: a column beside the main pane on wide screens, a drawer on phones. */
+export function Sidebar(p: { section: Section; current?: string; page?: string }) {
   const { side, sideMobile, closeMobileSide } = useShell();
-  if (!HAS_SIDE.includes(section)) return null;
-  return (
-    <>
-      <aside
-        id="side"
-        className={cn(
-          "z-40 flex w-72 shrink-0 flex-col border-r border-border bg-card/60",
-          !side && "desk:hidden",
-          "max-desk:fixed max-desk:inset-y-0 max-desk:left-0 max-desk:w-[84vw] max-desk:max-w-80 max-desk:bg-background max-desk:shadow-2xl max-desk:transition-transform max-desk:duration-300 max-desk:ease-[var(--ease-drawer)]",
-          !sideMobile && "max-desk:-translate-x-full max-desk:shadow-none",
-        )}
-      >
-        {section === "chat" ? <ChatList /> : section === "projects" ? <ProjectList current={current} /> : <SettingsNav page={page} />}
-      </aside>
-      <div
-        className={cn("sideScrim fixed inset-0 z-30 bg-black/30 backdrop-blur-[2px] transition-opacity desk:hidden", sideMobile ? "opacity-100" : "pointer-events-none opacity-0")}
-        onClick={closeMobileSide}
-      />
-    </>
-  );
+  const phone = usePhone();
+  if (!HAS_SIDE.includes(p.section)) return null;
+  if (phone)
+    return (
+      <Drawer side="left" open={sideMobile} onOpenChange={(o) => !o && closeMobileSide()}>
+        <DrawerContent showClose={false} className="w-72">
+          <DrawerTitle className="sr-only">列表</DrawerTitle>
+          <aside id="side" className="flex min-h-0 flex-1 flex-col"><SideContent {...p} /></aside>
+        </DrawerContent>
+      </Drawer>
+    );
+  if (!side) return null;
+  return <aside id="side" className="flex w-64 shrink-0 flex-col"><SideContent {...p} /></aside>;
 }

@@ -1,16 +1,23 @@
 // Projects: each one is its own thread with its own memory. The sidebar lists them; the top bar names the open one.
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { CopyIcon, FolderIcon, InfoIcon, MoreHorizontalIcon, SearchIcon } from "@/components/icons";
+import { Button } from "@/ui/button";
+import { EmptyState, EmptyStateActions, EmptyStateDescription, EmptyStateIcon, EmptyStateTitle } from "@/ui/empty-state";
+import { Input } from "@/ui/input";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/ui/menu";
+import { SettingsRow, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
+import { ResponseMarkdown } from "@/ui/streaming-response";
 import { api, enc } from "../api.ts";
 import { ChatPane } from "../components/ChatPane.tsx";
-import { ActionMenu, Btn, IconBtn } from "../components/kit.tsx";
-import { Sheet } from "../components/Sheet.tsx";
-import { Grow, Group, Md, Note, Row, SectionTitle, Sub } from "../components/ui.tsx";
+import { Section, Sheet, ToolbarButton } from "../components/parts.tsx";
 import { TopBar } from "../components/TopBar.tsx";
-import { ago, briefLine, md, pname, UNTITLED } from "../lib.ts";
+import { ago, briefLine, pname, UNTITLED } from "../lib.ts";
 import { invalidate, qc, useMemories, useProject, useProjects } from "../queries.ts";
 import { confirmDialog, toast, useShell } from "../store.tsx";
 import type { Project } from "../types.ts";
+
+const focusComposer = () => setTimeout(() => document.querySelector<HTMLTextAreaElement>("#composer textarea")?.focus(), 250);
 
 export function useNewProject() {
   const nav = useNavigate();
@@ -19,11 +26,50 @@ export function useNewProject() {
     if ((p as any).error) return;
     await invalidate("projects");
     nav({ to: "/projects/$id", params: { id: p.id } });
-    setTimeout(() => document.getElementById("t")?.focus(), 250);
+    focusComposer();
   };
 }
 
-export function RenameBox({ p, className }: { p: Project; className?: string }) {
+/** Rename · archive/restore · delete. Renaming happens in the open project's top bar. */
+export function useProjectActions(p: Project) {
+  const { setRenaming } = useShell();
+  const nav = useNavigate();
+  return async (a: "rename" | "archive" | "delete") => {
+    if (a === "rename") {
+      nav({ to: "/projects/$id", params: { id: p.id } });
+      return setRenaming(p.id);
+    }
+    if (a === "archive") await api(`/api/projects/${enc(p.id)}`, { method: "PATCH", body: { status: p.status === "active" ? "archived" : "active" } });
+    if (a === "delete") {
+      const ok = await confirmDialog({ title: `删除「${pname(p)}」？`, body: "对话、记忆和文件都会删除", confirm: "删除", danger: true });
+      if (!ok) return;
+      await api(`/api/projects/${enc(p.id)}`, { method: "DELETE" });
+      if (localStorage.project === p.id) localStorage.project = "";
+      nav({ to: "/projects" });
+    }
+    invalidate("projects", "project");
+  };
+}
+
+/** The "⋯" menu for a project, in its sidebar row and in the project's top bar. */
+export function ProjectMenu({ p, trigger }: { p: Project; trigger?: "toolbar" | "row" }) {
+  const act = useProjectActions(p);
+  return (
+    <Menu>
+      <MenuTrigger render={<Button type="button" variant="ghost" size={trigger === "row" ? "icon-xs" : "icon-sm"} aria-label="更多" />}>
+        <MoreHorizontalIcon />
+      </MenuTrigger>
+      <MenuContent align="end">
+        <MenuItem onClick={() => act("rename")}>重命名</MenuItem>
+        <MenuItem onClick={() => act("archive")}>{p.status === "active" ? "归档" : "恢复"}</MenuItem>
+        <MenuSeparator />
+        <MenuItem variant="destructive" onClick={() => act("delete")}>删除</MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+}
+
+export function RenameBox({ p }: { p: Project }) {
   const { setRenaming } = useShell();
   const done = useRef(false);
   const born = useRef(Date.now());
@@ -35,48 +81,18 @@ export function RenameBox({ p, className }: { p: Project; className?: string }) 
     invalidate("projects", "project");
   };
   return (
-    <input
-      className={`renameBox w-full rounded-lg border border-primary/50 bg-background px-2 py-0.5 text-[inherit] outline-none ring-2 ring-primary/20 ${className ?? ""}`} autoFocus placeholder="项目名" defaultValue={p.name === UNTITLED ? "" : p.name}
+    <Input
+      size="sm" className="renameBox max-w-xs" autoFocus placeholder="项目名" aria-label="项目名" defaultValue={p.name === UNTITLED ? "" : p.name}
       onFocus={(e) => e.target.select()}
       onKeyDown={(e) => {
         if (e.key === "Enter" && !e.nativeEvent.isComposing) finish(e.currentTarget.value.trim());
         if (e.key === "Escape") finish(null);
       }}
       onBlur={(e) => {
-        // The menu that opened this hands focus back to its button as it folds away; take it back once.
+        // The menu that opened this hands focus back to its button as it closes; take it back once.
         if (Date.now() - born.current < 600) return void setTimeout(() => e.target.focus(), 0);
         finish(e.currentTarget.value.trim());
       }}
-    />
-  );
-}
-
-/** Rename · archive/restore · delete, for the sidebar rows and the project bar. */
-export function ProjectMenu({ p, size = 16, className = "sm pMenuBtn size-7" }: { p: Project; size?: number; className?: string }) {
-  const { setRenaming } = useShell();
-  const nav = useNavigate();
-  const act = async (a: string) => {
-    if (a === "rename") return setRenaming(p.id);
-    if (a === "archive") await api(`/api/projects/${enc(p.id)}`, { method: "PATCH", body: { status: p.status === "active" ? "archived" : "active" } });
-    if (a === "delete") {
-      const ok = await confirmDialog({ title: `删除「${pname(p)}」？`, body: "对话、记忆和文件都会删除", confirm: "删除", danger: true });
-      if (!ok) return;
-      await api(`/api/projects/${enc(p.id)}`, { method: "DELETE" });
-      if (localStorage.project === p.id) localStorage.project = "";
-      nav({ to: "/projects" });
-    }
-    invalidate("projects", "project");
-  };
-  return (
-    <ActionMenu
-      className={className.includes("pMenuBtn") ? "pMenuWrap absolute right-1.5 top-1.5 z-20 desk:hidden desk:group-hover/row:inline-flex desk:[.on_&]:inline-flex" : undefined}
-      trigger={<IconBtn className={className} icon="more" label="更多" size={size} tip={false} />}
-      onAction={act}
-      items={[
-        { id: "rename", label: "重命名", icon: "edit" },
-        { id: "archive", label: p.status === "active" ? "归档" : "恢复", icon: p.status === "active" ? "archive" : "refresh" },
-        { id: "delete", label: "删除", icon: "trash", danger: true },
-      ]}
     />
   );
 }
@@ -88,27 +104,34 @@ function RepoBox({ p, open }: { p: Project; open: boolean }) {
   if (!r) return null;
   const cmd = `git clone ${location.origin}${r.path}`;
   return (
-    <>
-      <SectionTitle>代码仓库 · {r.storage === "s3" ? "S3" : "本机"}</SectionTitle>
-      <Group id="repoBox">
-        <Row><code className="grow clone min-w-0 flex-1 break-all font-mono text-xs leading-5">{cmd}</code><IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))} /></Row>
-        {r.commits.map((c) => <Row key={c.sha}><Grow>{c.subject}<Sub>{c.sha.slice(0, 7)} · {ago(c.at)}</Sub></Grow></Row>)}
-      </Group>
-      <Note>密码就是登录密码；Tomo 改的文件会自动提交</Note>
-    </>
+    <Section id="repoBox" title={`代码仓库 · ${r.storage === "s3" ? "S3" : "本机"}`} note="密码就是登录密码；Tomo 改的文件会自动提交">
+      <SettingsRow>
+        <code className="clone min-w-0 flex-1 font-mono text-ui-sm break-all">{cmd}</code>
+        <ToolbarButton label="复制" onClick={() => navigator.clipboard?.writeText(cmd).then(() => toast("已复制"))}><CopyIcon /></ToolbarButton>
+      </SettingsRow>
+      {r.commits.map((c) => (
+        <SettingsRow key={c.sha} data-commit={c.sha}>
+          <SettingsRowText><SettingsRowTitle>{c.subject}</SettingsRowTitle><SettingsRowDescription>{c.sha.slice(0, 7)} · {ago(c.at)}</SettingsRowDescription></SettingsRowText>
+        </SettingsRow>
+      ))}
+    </Section>
   );
 }
 
 function ProjectInfo({ p, open, onClose }: { p: Project; open: boolean; onClose: () => void }) {
   const mem = useMemories("", p.id).data ?? [];
   return (
-    <Sheet open={open} onClose={onClose} title={pname(p)} small>
-      <SectionTitle>简介</SectionTitle>
-      <Md className="doc rounded-2xl border border-border bg-card px-5 py-4 text-sm" html={p.brief ? md(p.brief) : `<p style="opacity:.6">Tomo 了解目标后会写</p>`} />
-      <SectionTitle>记忆 · {mem.length}</SectionTitle>
+    <Sheet open={open} onClose={onClose} title={pname(p)}>
+      <Section title="简介">
+        <div className="doc px-4 py-3">{p.brief ? <ResponseMarkdown text={p.brief} /> : <p className="text-ui text-muted-foreground">Tomo 了解目标后会写</p>}</div>
+      </Section>
       {mem.length ? (
-        <Group>{mem.map((m) => <Row key={m.id}><Grow>{m.content}<Sub>{ago(m.updated_at)}</Sub></Grow></Row>)}</Group>
-      ) : <Note>还没有记忆</Note>}
+        <Section title={`记忆 · ${mem.length}`}>
+          {mem.map((m) => (
+            <SettingsRow key={m.id}><SettingsRowText><SettingsRowTitle>{m.content}</SettingsRowTitle><SettingsRowDescription>{ago(m.updated_at)}</SettingsRowDescription></SettingsRowText></SettingsRow>
+          ))}
+        </Section>
+      ) : <p className="px-1 text-ui-sm text-muted-foreground">还没有记忆</p>}
       <RepoBox p={p} open={open} />
     </Sheet>
   );
@@ -128,11 +151,12 @@ export function ProjectsView({ id }: { id?: string }) {
     return list.data && !list.data.length ? (
       <div id="projSlot" className="flex min-h-0 flex-1 flex-col">
         <TopBar title="项目" />
-        <div className="projEmpty flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight">还没有项目</h2>
-          <p className="text-sm text-muted-foreground">适合要做好几天的事</p>
-          <div className="btns mt-4 flex justify-center"><Btn onClick={newProject}>新建项目</Btn></div>
-        </div>
+        <EmptyState size="lg" className="projEmpty flex-1">
+          <EmptyStateIcon><FolderIcon /></EmptyStateIcon>
+          <EmptyStateTitle>还没有项目</EmptyStateTitle>
+          <EmptyStateDescription>适合要做好几天的事</EmptyStateDescription>
+          <EmptyStateActions><Button id="emptyNewProject" onClick={newProject}>新建项目</Button></EmptyStateActions>
+        </EmptyState>
       </div>
     ) : null;
   return <ProjectThread id={id} />;
@@ -154,12 +178,15 @@ function ProjectThread({ id }: { id: string }) {
   return (
     <>
       <TopBar className="projBar" title={renaming === p.id ? <RenameBox p={p} /> : pname(p)} sub={line || undefined} onSub={() => setInfo(true)}>
-        <IconBtn icon="search" label="搜索" onClick={() => setSearch({ conv: p.conversation_id!, label: pname(p) })} />
-        <IconBtn icon="info" label="简介" onClick={() => setInfo(true)} />
-        <ProjectMenu p={p} size={18} className="" />
+        <ToolbarButton label="搜索" onClick={() => setSearch({ conv: p.conversation_id!, label: pname(p) })}><SearchIcon /></ToolbarButton>
+        <ToolbarButton label="简介" onClick={() => setInfo(true)}><InfoIcon /></ToolbarButton>
+        <ProjectMenu p={p} />
       </TopBar>
       <div id="projSlot" className="flex min-h-0 flex-1 flex-col">
-        <ChatPane conv={p.conversation_id} placeholder="发消息给 Tomo" empty={<div className="projStart grid min-h-[40vh] place-items-center text-2xl font-semibold tracking-tight">要做什么？</div>} onSent={watchTitle} />
+        <ChatPane
+          conv={p.conversation_id} placeholder="发消息给 Tomo" onSent={watchTitle}
+          empty={<EmptyState size="lg" className="projStart"><EmptyStateTitle>要做什么？</EmptyStateTitle></EmptyState>}
+        />
       </div>
       <ProjectInfo p={p} open={info} onClose={() => setInfo(false)} />
     </>

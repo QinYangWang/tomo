@@ -1,10 +1,16 @@
 // First-run guide: who you are, then an AI provider. Both steps can be skipped; settings has the rest.
-import { Btn, Input } from "../components/kit.tsx";
 import { useState } from "react";
-import { api } from "../api.ts";
-import { Icon } from "../icons.tsx";
-import { Group, KV } from "../components/ui.tsx";
+import { BotIcon, CheckIcon, UserIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { Button } from "@/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/ui/card";
+import { Field, FieldDescription } from "@/ui/field";
+import { IconChip } from "@/ui/icon-chip";
+import { Input } from "@/ui/input";
+import { PasswordInput } from "@/ui/password-input";
+import { SettingsGroup, SettingsRow, SettingsRowControl, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
+import { api } from "../api.ts";
+import { Msg, type Flash } from "../components/parts.tsx";
 import { invalidate } from "../queries.ts";
 import type { Settings } from "../types.ts";
 import { ready, testProvider, useProviderAsDefault } from "./shared.ts";
@@ -16,6 +22,30 @@ const prefer = (id: string) => {
   return (m: { id: string }, list?: { id: string }[]) => FREE_PICKS.find((re) => list?.some((x) => re.test(x.id)))?.test(m.id) ?? false;
 };
 
+/** Two dots: which step of the guide this is. */
+const Dots = ({ step }: { step: number }) => (
+  <div className="flex justify-center gap-1.5" aria-label={`第 ${step + 1} 步，共 2 步`}>
+    {[0, 1].map((i) => <span key={i} className={cn("h-1.5 rounded-full transition-[width,background-color] duration-200", i === step ? "w-5 bg-foreground" : "w-1.5 bg-foreground/16")} />)}
+  </div>
+);
+
+function Frame({ step, icon, title, desc, children, footer }: { step: number; icon: React.ReactNode; title: string; desc: string; children: React.ReactNode; footer: React.ReactNode }) {
+  return (
+    <div id="onboard" className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-shell p-5">
+      <Card size="lg" className="obCard w-full max-w-md">
+        <CardHeader className="justify-items-center text-center">
+          <Dots step={step} />
+          <IconChip tone="primary" size="xl" className="mt-3">{icon}</IconChip>
+          <CardTitle className="mt-2 text-2xl tracking-tight">{title}</CardTitle>
+          <CardDescription>{desc}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">{children}</CardContent>
+        <CardFooter className="flex-col">{footer}</CardFooter>
+      </Card>
+    </div>
+  );
+}
+
 export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
   const [step, setStep] = useState(0);
   const P = S.profile ?? {};
@@ -23,31 +53,31 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
   const [pick, setPick] = useState(S.providers.find(ready)?.id ?? S.providers[0]!.id);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
-  const [m, setM] = useState<{ text: string; ok: boolean } | null>(null);
+  const [m, setM] = useState<Flash>(null);
   const p = S.providers.find((x) => x.id === pick)!;
   const finish = async () => {
     await api("/api/settings/onboarded", { method: "PUT", body: { done: true } });
     await invalidate("settings");
     onDone();
   };
-  const dots = <div className="obDots flex justify-center gap-1.5">{[0, 1].map((i) => <span key={i} className={cn("h-1.5 rounded-full transition-all", i === step ? "on w-5 bg-foreground" : "w-1.5 bg-foreground/20")} />)}</div>;
   if (step === 0)
     return (
-      <div id="onboard" className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-brand-bg p-5">
-        <div className="obCard flex w-full max-w-md flex-col gap-3 rounded-[28px] border border-border bg-background/80 p-7 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.25)] backdrop-blur-xl">
-          {dots}
-          <span className="obIcon mx-auto mt-3 grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon name="user" size={26} /></span>
-          <h1 className="text-center text-2xl font-semibold tracking-tight">先认识一下</h1>
-          <p className="mb-2 text-center text-sm text-muted-foreground">Tomo 会这样称呼你</p>
-          <Group className="mb-2">
-            {([["nickname", "称呼", "Tomo 怎么叫你"], ["name", "姓名", "你的名字"], ["work", "工作", "职位和公司"]] as const).map(([k, l, ph], i) => (
-              <KV key={k} label={l} id={`ob-${k}`} autoFocus={i === 0} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-            ))}
-          </Group>
-          <Btn big id="obNext" onClick={async () => { await api("/api/settings/profile", { method: "PUT", body: f }); setStep(1); }}>下一步</Btn>
-          <Btn kind="link" onClick={() => setStep(1)}>跳过</Btn>
-        </div>
-      </div>
+      <Frame
+        step={0} icon={<UserIcon />} title="先认识一下" desc="Tomo 会这样称呼你"
+        footer={<>
+          <Button id="obNext" size="lg" className="w-full" onClick={async () => { await api("/api/settings/profile", { method: "PUT", body: f }); setStep(1); }}>下一步</Button>
+          <Button variant="ghost" className="w-full" onClick={() => setStep(1)}>跳过</Button>
+        </>}
+      >
+        <SettingsGroup>
+          {([["nickname", "称呼", "Tomo 怎么叫你"], ["name", "姓名", "你的名字"], ["work", "工作", "职位和公司"]] as const).map(([k, l, ph], i) => (
+            <SettingsRow key={k} className="flex-nowrap">
+              <SettingsRowText className="basis-12"><SettingsRowTitle>{l}</SettingsRowTitle></SettingsRowText>
+              <SettingsRowControl className="flex-1"><Input id={`ob-${k}`} aria-label={l} autoFocus={i === 0} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></SettingsRowControl>
+            </SettingsRow>
+          ))}
+        </SettingsGroup>
+      </Frame>
     );
   const go = async () => {
     if (!key.trim() && !ready(p)) return setM({ text: "先粘贴密钥", ok: false });
@@ -65,28 +95,26 @@ export function Onboarding({ S, onDone }: { S: Settings; onDone: () => void }) {
     setTimeout(finish, 700);
   };
   return (
-    <div id="onboard" className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-brand-bg p-5">
-      <div className="obCard flex w-full max-w-md flex-col gap-3 rounded-[28px] border border-border bg-background/80 p-7 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.25)] backdrop-blur-xl">
-        {dots}
-        <span className="obIcon mx-auto mt-3 grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon name="ai" size={26} /></span>
-        <h1 className="text-center text-2xl font-semibold tracking-tight">选一个 AI 模型</h1>
-        <p className="mb-2 text-center text-sm text-muted-foreground">选一家，粘贴密钥（API Key）</p>
-        <div className="provGrid grid grid-cols-2 gap-2">
-          {S.providers.map((x) => (
-            <button
-              key={x.id} type="button" data-pv={x.id} onClick={() => (setPick(x.id), setM(null))}
-              className={cn("flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors", x.id === pick ? "on border-primary bg-primary/[0.06] text-foreground ring-1 ring-primary" : "border-border bg-card hover:border-border-strong")}
-            >{x.label}{ready(x) && <span className="text-success"><Icon name="tick" size={14} /></span>}</button>
-          ))}
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Input type="password" id="obKey" autoComplete="off" value={key} onChange={setKey} classNames={{ field: "bg-background" }} placeholder={ready(p) ? "已保存，可直接完成" : `${p.label} 的密钥`} />
-          <span className="px-1 text-xs text-muted-foreground">{p.hint}</span>
-        </div>
-        {m && <span className={cn("msg px-1 text-xs", m.ok ? "ok text-success" : "err text-destructive")}>{m.text}</span>}
-        <Btn big id="obGo" disabled={busy} onClick={go}>{ready(p) && S.model.provider === pick && !key ? "完成" : "保存并试用"}</Btn>
-        <Btn kind="link" id="obSkip" onClick={finish}>以后再说</Btn>
+    <Frame
+      step={1} icon={<BotIcon />} title="选一个 AI 模型" desc="选一家，粘贴密钥（API Key）"
+      footer={<>
+        <Button id="obGo" size="lg" className="w-full" disabled={busy} onClick={go}>{ready(p) && S.model.provider === pick && !key ? "完成" : "保存并试用"}</Button>
+        <Button id="obSkip" variant="ghost" className="w-full" onClick={finish}>以后再说</Button>
+      </>}
+    >
+      <div className="provGrid grid grid-cols-2 gap-2" role="radiogroup" aria-label="服务商">
+        {S.providers.map((x) => (
+          <Button
+            key={x.id} data-pv={x.id} role="radio" aria-checked={x.id === pick} variant={x.id === pick ? "secondary" : "outline"} className="justify-between"
+            onClick={() => (setPick(x.id), setM(null))}
+          >{x.label}{ready(x) && <CheckIcon className="text-success" />}</Button>
+        ))}
       </div>
-    </div>
+      <Field>
+        <PasswordInput id="obKey" autoComplete="off" aria-label="密钥" value={key} onChange={(e) => setKey(e.target.value)} placeholder={ready(p) ? "已保存，可直接完成" : `${p.label} 的密钥`} />
+        <FieldDescription>{p.hint}</FieldDescription>
+      </Field>
+      <Msg m={m} />
+    </Frame>
   );
 }

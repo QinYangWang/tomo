@@ -1,19 +1,18 @@
-// Shell: sign-in gate, then rail · sidebar · main pane (Synara-style three columns; the sidebar is a drawer on phones).
-import { IconBtn } from "./components/kit.tsx";
+// Shell: sign-in gate, then rail · list · main pane on a shell band (the list is a drawer and the rail is the tab bar on phones).
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { ArrowLeftIcon } from "@/components/icons";
 import { session } from "./api.ts";
-import { ConfirmHost } from "./components/Sheet.tsx";
 import { Gate } from "./components/Gate.tsx";
+import { ConfirmHost, ToolbarButton } from "./components/parts.tsx";
 import { SearchSheet } from "./components/SearchSheet.tsx";
-import { Toast } from "./components/Toast.tsx";
-import { Icon } from "./icons.tsx";
 import { HAS_SIDE, Rail, Sidebar, type Section } from "./components/Sidebar.tsx";
 import { TopBar } from "./components/TopBar.tsx";
 import { hasKey, qc, useSettings } from "./queries.ts";
 import { Onboarding } from "./settings/Onboarding.tsx";
-import { isPhone, useShell } from "./store.tsx";
+import { isPhone, usePhone, useShell } from "./store.tsx";
 import { NewPanelSheet } from "./views/Home.tsx";
+import { ScrollArea } from "@/ui/scroll-area";
 
 const sectionOf = (path: string): Section => {
   const s = path.split("/")[1] ?? "";
@@ -38,6 +37,7 @@ function Shell({ firstRun }: { firstRun: boolean }) {
   const loc = useLocation();
   const nav = useNavigate();
   const shell = useShell();
+  const phone = usePhone();
   const S = useSettings().data;
   const section = sectionOf(loc.pathname);
   const parts = loc.pathname.split("/").filter(Boolean);
@@ -61,7 +61,7 @@ function Shell({ firstRun }: { firstRun: boolean }) {
         shell.setSearch(shell.chat);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "b") (e.preventDefault(), shell.toggleSide());
-      if (e.key === "Escape" && section === "settings" && !document.querySelector("[role=dialog]") && !(e.target as HTMLElement).closest?.("input, textarea")) back();
+      if (e.key === "Escape" && section === "settings" && !document.querySelector("[role=dialog], [role=alertdialog], [role=menu]") && !(e.target as HTMLElement).closest?.("input, textarea")) back();
     };
     addEventListener("keydown", key);
     return () => removeEventListener("keydown", key);
@@ -74,26 +74,40 @@ function Shell({ firstRun }: { firstRun: boolean }) {
   const projectId = section === "projects" ? parts[1] : undefined;
   const page = section === "settings" ? parts[1] : undefined;
   const showGuide = !!S && !S.onboarded && !guideDone && (firstRun || !hasKey(S) || !(S.profile?.nickname || S.profile?.name));
+  const onSettings = () => (section === "settings" ? nav({ to: lastMain.current }) : nav({ to: "/settings" }));
+
+  const view = (
+    <section className="flex min-h-0 flex-1 flex-col" id={`v-${section}`}>
+      {section === "settings" ? (
+        <>
+          <TopBar title="设置" lead={parts.length > 2 || (parts.length > 1 && phone) ? <ToolbarButton id="backBtn" label="返回" onClick={back}><ArrowLeftIcon /></ToolbarButton> : undefined} />
+          <ScrollArea className="min-h-0 flex-1">
+            <div id="setRoot" className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-5 pt-8 pb-24 md:px-8"><Outlet /></div>
+          </ScrollArea>
+        </>
+      ) : <Outlet />}
+    </section>
+  );
 
   return (
-    <div id="app" className="flex h-dvh overflow-hidden bg-background text-foreground">
-      <Rail section={section} onSettings={() => (section === "settings" ? nav({ to: lastMain.current }) : nav({ to: "/settings" }))} />
-      <Sidebar section={section} current={projectId} page={page} />
-      <main className="relative flex min-w-0 flex-1 flex-col max-desk:pb-[calc(64px+env(safe-area-inset-bottom))]">
-        <section className="view flex min-h-0 flex-1 flex-col" id={`v-${section}`}>
-          {section === "settings" ? (
-            <>
-              <TopBar title="设置" lead={parts.length > 2 || (parts.length > 1 && isPhone()) ? <IconBtn id="backBtn" icon="back" label="返回" onClick={back} /> : undefined} />
-              <div className="setScroll min-h-0 flex-1 overflow-y-auto"><div className="setPage mx-auto w-full max-w-2xl px-5 pt-10 pb-24 desk:px-8" id="setRoot"><Outlet /></div></div>
-            </>
-          ) : <Outlet />}
-        </section>
-      </main>
+    <>
+      {phone ? (
+        <div id="app" className="flex h-dvh w-full flex-col overflow-hidden bg-shell text-foreground">
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-shell bg-background">{view}</main>
+          <div className="shrink-0 pb-[env(safe-area-inset-bottom)]"><Rail section={section} onSettings={onSettings} /></div>
+          <Sidebar section={section} current={projectId} page={page} />
+        </div>
+      ) : (
+        <div id="app" className="flex h-dvh w-full overflow-hidden bg-shell text-foreground">
+          <Rail section={section} onSettings={onSettings} />
+          <Sidebar section={section} current={projectId} page={page} />
+          <main className="shell-inset mt-0.75 flex min-w-0 flex-1 flex-col overflow-hidden">{view}</main>
+        </div>
+      )}
       <NewPanelSheet />
       <SearchSheet />
       <ConfirmHost />
       {showGuide && <Onboarding S={S!} onDone={() => setGuideDone(true)} />}
-      <Toast />
-    </div>
+    </>
   );
 }

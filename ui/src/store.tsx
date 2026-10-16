@@ -1,4 +1,5 @@
 // App-wide bits that are not server state: toasts, confirm dialogs, and the shell's open/closed flags.
+import { Toast } from "@base-ui/react/toast";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 type Listener = () => void;
@@ -23,12 +24,10 @@ function signal<T>(initial: T) {
   };
 }
 
-export const toastSignal = signal<{ text: string; n: number } | null>(null);
-let tt: ReturnType<typeof setTimeout>;
+/** One toast queue for the whole app, so `toast("…")` works outside React too. */
+export const toastManager = Toast.createToastManager();
 export function toast(text: string) {
-  toastSignal.set({ text, n: Date.now() });
-  clearTimeout(tt);
-  tt = setTimeout(() => toastSignal.set(null), 2200);
+  toastManager.add({ title: text, type: "success" });
 }
 
 export type ConfirmReq = { title: string; body: string; confirm?: string; cancel?: string; danger?: boolean; resolve: (ok: boolean) => void };
@@ -54,7 +53,19 @@ type Shell = {
 };
 const Ctx = createContext<Shell>(null!);
 export const useShell = () => useContext(Ctx);
-export const isPhone = () => innerWidth < 900;
+/** Phones and narrow windows get bottom tabs and a drawer instead of the rail and sidebar (below `md`). */
+export const PHONE_QUERY = "(max-width: 767.98px)";
+export const isPhone = () => matchMedia(PHONE_QUERY).matches;
+export function usePhone() {
+  const [phone, setPhone] = useState(isPhone);
+  useEffect(() => {
+    const m = matchMedia(PHONE_QUERY);
+    const on = () => setPhone(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
 
 export function ShellProvider({ children }: { children: ReactNode }) {
   const [newPanel, setNewPanel] = useState(false);

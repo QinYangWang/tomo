@@ -2,20 +2,21 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { RouterProvider as AriaRouter } from "react-aria-components";
+import { ToastProvider } from "@/ui/toast";
+import { TooltipProvider } from "@/ui/tooltip";
 import { Root } from "./App.tsx";
-import "@fontsource-variable/geist";
-import "@fontsource-variable/geist-mono";
+import "./app/fonts.css";
+import "./app/typeset.css";
 import "./app.css";
 
-// beUI themes dark mode with a .dark class; follow the system setting.
+// The theme switches to dark with a .dark class; follow the system setting.
 const dark = matchMedia("(prefers-color-scheme: dark)");
 const applyTheme = () => document.documentElement.classList.toggle("dark", dark.matches);
 applyTheme();
 dark.addEventListener("change", applyTheme);
 import { qc } from "./queries.ts";
 import { AccountPage, SettingsPage, SettingsRoot } from "./settings/Settings.tsx";
-import { ShellProvider } from "./store.tsx";
+import { ShellProvider, toastManager } from "./store.tsx";
 import { ChatView } from "./views/Chat.tsx";
 import { HomeView } from "./views/Home.tsx";
 import { ProjectsView } from "./views/Projects.tsx";
@@ -54,11 +55,13 @@ declare module "@tanstack/react-router" {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={qc}>
-      <ShellProvider>
-        <AriaRouter navigate={(to) => router.navigate({ to: to as string })}>
-          <RouterProvider router={router} />
-        </AriaRouter>
-      </ShellProvider>
+      <ToastProvider toastManager={toastManager} timeout={2400}>
+        <TooltipProvider>
+          <ShellProvider>
+            <RouterProvider router={router} />
+          </ShellProvider>
+        </TooltipProvider>
+      </ToastProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -1,7 +1,9 @@
 // The owner's chats: Home (all platform DMs) plus each bound group/channel. The sidebar switches between them.
 import { useEffect } from "react";
+import { SearchIcon } from "@/components/icons";
+import { EmptyState, EmptyStateTitle } from "@/ui/empty-state";
 import { ChatPane } from "../components/ChatPane.tsx";
-import { IconBtn } from "../components/kit.tsx";
+import { ToolbarButton } from "../components/parts.tsx";
 import { TopBar } from "../components/TopBar.tsx";
 import { useConversations } from "../queries.ts";
 import { useShell } from "../store.tsx";
@@ -17,12 +19,12 @@ export function ChatView({ c = "home" }: { c?: string }) {
   return (
     <>
       <TopBar title={label}>
-        <IconBtn icon="search" label="搜索" onClick={() => setSearch({ conv: c, label })} />
+        <ToolbarButton label="搜索" onClick={() => setSearch({ conv: c, label })}><SearchIcon /></ToolbarButton>
       </TopBar>
       <ChatPane
         conv={c}
         placeholder="发消息给 Tomo"
-        empty={<div className="projStart grid min-h-[40vh] place-items-center text-2xl font-semibold tracking-tight">想聊点什么？</div>}
+        empty={<EmptyState size="lg" className="projStart"><EmptyStateTitle>想聊点什么？</EmptyStateTitle></EmptyState>}
       />
     </>
   );

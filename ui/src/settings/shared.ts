@@ -1,5 +1,4 @@
 import { api, enc, session } from "../api.ts";
-import type { IconName } from "../icons.tsx";
 import type { Channel, Provider } from "../types.ts";
 
 export const CH: Record<Channel["id"], { label: string; fields: Record<string, string>; steps: string[] }> = {
@@ -13,8 +12,8 @@ export const ready = (p: Provider) => p.key.set || p.fromEnv;
 export const chHasToken = (c: Channel) => Object.keys(CH[c.id].fields).every((f) => c.fields[f]?.last4 || c.fields[f]?.fromEnv);
 export const chState = (c: Channel): [string, string] => (!chHasToken(c) ? ["未连接", ""] : !c.enabled ? ["已暂停", ""] : STATE[c.status.state] ?? ["", ""]);
 
-/** Settings pages: name (2–4 字), icon, one-line description (≤ 20 字). */
-export const PAGES: Record<string, [string, IconName, string]> = {
+/** Settings pages: name (2–4 字), icon key, one-line description (≤ 20 字). */
+export const PAGES: Record<string, [string, string, string]> = {
   profile: ["个人资料", "user", "Tomo 回答时会参考"],
   accounts: ["聊天软件", "link", "在这些软件里也能找 Tomo"],
   models: ["AI 模型", "ai", "Tomo 用哪个模型思考"],
@@ -25,7 +24,7 @@ export const PAGES: Record<string, [string, IconName, string]> = {
 };
 export const GROUPS = [["profile"], ["accounts", "models", "storage", "backup"], ["security", "about"]];
 /** Top-level tool pages, each with its own route and layout. */
-export const TOOLS: Record<string, [string, IconName, string]> = {
+export const TOOLS: Record<string, [string, string, string]> = {
   schedules: ["定时", "clock", "到点自动做的事"],
   memory: ["记忆", "brain", "Tomo 记住的关于你的事"],
   skills: ["技能", "skill", "Tomo 自己学会的做法"],

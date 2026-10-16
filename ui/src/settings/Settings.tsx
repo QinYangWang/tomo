@@ -1,20 +1,56 @@
 // Settings: the sidebar lists the pages on wide screens; phones get the index list. The top bar's back button walks up.
-import { Btn, Field, IconBtn, Pick, Toggle } from "../components/kit.tsx";
-import { Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { siAnthropic, siDeepseek, siDiscord, siGooglegemini, siMistralai, siOpenrouter, siTelegram } from "simple-icons";
+import { BotIcon, ChatIcon, CopyIcon, LogOutIcon, ServerIcon, HistoryIcon, SparklesIcon } from "@/components/icons";
+import { Avatar, AvatarFallback } from "@/ui/avatar";
+import { Badge } from "@/ui/badge";
+import { BrandIcon } from "@/ui/brand-icon";
+import { Button } from "@/ui/button";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxSearch, ComboboxTrigger, ComboboxValue } from "@/ui/combobox";
+import { Field, FieldDescription, FieldLabel } from "@/ui/field";
+import { IconChip } from "@/ui/icon-chip";
+import { Input } from "@/ui/input";
+import { PasswordInput } from "@/ui/password-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select";
+import { SettingsFooterNote, SettingsGroup, SettingsGroupFooter, SettingsRow, SettingsRowControl, SettingsRowDescription, SettingsRowText, SettingsRowTitle } from "@/ui/settings-section";
+import { Switch } from "@/ui/switch";
 import { api, enc, session } from "../api.ts";
-import { Icon, type IconName } from "../icons.tsx";
+import { Head, LinkRow, Msg, Section, Steps, ToolbarButton, type Flash } from "../components/parts.tsx";
+import { PAGE_ICON } from "../components/Sidebar.tsx";
 import { invalidate, useModels, useSettings } from "../queries.ts";
 import { confirmDialog, isPhone, toast } from "../store.tsx";
 import type { Channel, Provider, Settings } from "../types.ts";
 import { CH, chHasToken, chState, GROUPS, logout, PAGES, ready, testProvider, TOOLS, useProviderAsDefault } from "./shared.ts";
 
-import { Badge, Btns, Chevron as Arrow, Grow, Group, KV, Logo, Msg, Note, Pad, Pill, Row, RowButton, RowLink, SectionTitle, Sub, type Flash } from "../components/ui.tsx";
+const Val = ({ children }: { children: ReactNode }) => <span className="shrink-0 truncate text-ui-sm text-muted-foreground">{children}</span>;
+const Code = ({ children, id }: { children: ReactNode; id?: string }) => <code id={id} className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-ui-sm">{children}</code>;
+const RowIcon = ({ children }: { children: ReactNode }) => <span className="flex shrink-0 text-muted-foreground [&_svg]:size-4">{children}</span>;
+/** Footer band of a group: a feedback line on the left, the buttons on the right. */
+const Footer = ({ m, children, msgId }: { m: Flash; children: ReactNode; msgId?: string }) => (
+  <SettingsGroupFooter>
+    <SettingsFooterNote><Msg m={m} id={msgId} /></SettingsFooterNote>
+    <div className="flex flex-wrap items-center gap-2">{children}</div>
+  </SettingsGroupFooter>
+);
+/** Label on the left, a control on the right (wraps under the label on phones). */
+function KV({ label, k, children }: { label: string; k: string; children: ReactNode }) {
+  return (
+    <SettingsRow data-kv={k}>
+      <SettingsRowText className="basis-24"><SettingsRowTitle>{label}</SettingsRowTitle></SettingsRowText>
+      <SettingsRowControl className="w-full sm:w-80">{children}</SettingsRowControl>
+    </SettingsRow>
+  );
+}
 
-const Val = ({ children }: { children: ReactNode }) => <span className="val shrink-0 truncate text-xs text-muted-foreground">{children}</span>;
-const Steps = ({ items }: { items: ReactNode[] }) => <ol className="steps list-decimal space-y-1.5 pl-5 text-sm leading-6 text-muted-foreground marker:text-muted-foreground/60">{items.map((s, i) => <li key={i}>{s}</li>)}</ol>;
-const Mono = ({ label }: { label: string }) => <Logo>{label[0]}</Logo>;
-const Code = ({ children, id }: { children: ReactNode; id?: string }) => <code id={id} className="rounded-md bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-[0.85em]">{children}</code>;
+/** Channel and provider marks: the real logo where the brand set has one, a neutral glyph otherwise. */
+const CH_ICON: Record<string, ReactNode> = { telegram: <BrandIcon icon={siTelegram} />, discord: <BrandIcon icon={siDiscord} />, slack: <ChatIcon /> };
+const PROVIDER_ICON: Record<string, ReactNode> = {
+  anthropic: <BrandIcon icon={siAnthropic} />, google: <BrandIcon icon={siGooglegemini} />, openrouter: <BrandIcon icon={siOpenrouter} />,
+  deepseek: <BrandIcon icon={siDeepseek} />, mistral: <BrandIcon icon={siMistralai} />,
+};
+const Mark = ({ children }: { children: ReactNode }) => <IconChip size="sm">{children}</IconChip>;
+const okBadge = (text: string) => <Badge variant="success" size="sm">{text}</Badge>;
 
 export function SettingsRoot() {
   const S = useSettings().data;
@@ -27,36 +63,40 @@ export function SettingsRoot() {
   const key = S.providers.some(ready);
   const n = S.channels.filter((c) => c.enabled && c.status.state === "connected").length;
   const vals: Record<string, string> = { profile: who ? "" : "未填写", accounts: n ? `${n} 个已连接` : "未连接", models: key ? S.model.modelId.split("/").pop()! : "未设置" };
-  const row = (k: string, [label, icon]: [string, IconName, string], to: () => void) => (
-    <RowButton key={k} data-k={k} onClick={to}>
-      <span className="text-muted-foreground"><Icon name={icon} /></span><Grow>{label}</Grow><Val>{vals[k] ?? ""}</Val><Arrow />
-    </RowButton>
+  const row = (k: string, label: string, to: () => void) => (
+    <LinkRow key={k} data-k={k} onClick={to}>
+      <RowIcon>{PAGE_ICON[k]}</RowIcon>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <Val>{vals[k] ?? ""}</Val>
+    </LinkRow>
   );
   return (
     <>
-      <Link className="setHead mb-6 flex items-center gap-4 rounded-3xl border border-border bg-card p-4" to="/settings/$page" params={{ page: "profile" }}>
-        <span className="avatar grid size-14 shrink-0 place-items-center rounded-full bg-foreground text-xl font-semibold text-background">{who ? [...who][0]!.toUpperCase() : <Icon name="user" size={26} />}</span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="setName truncate text-lg font-semibold tracking-tight">{who || "你好"}</span>
-          <span className="setSub truncate text-sm text-muted-foreground">{who ? P.email || P.work || "" : "填写资料"}</span>
-        </span>
-        <Arrow />
-      </Link>
-      <Group>{Object.entries(TOOLS).map(([k, v]) => row(k, v, () => nav({ to: `/${k}` as "/" })))}</Group>
-      {GROUPS.map((g, i) => <Group key={i} className="mt-4">{g.map((k) => row(k, PAGES[k]!, () => nav({ to: "/settings/$page", params: { page: k } })))}</Group>)}
-      <Group className="logoutRow mt-4"><RowButton onClick={logout} className="text-destructive"><Icon name="logout" /><Grow>退出登录</Grow></RowButton></Group>
+      <SettingsGroup className="setHead">
+        <LinkRow onClick={() => nav({ to: "/settings/$page", params: { page: "profile" } })}>
+          <Avatar size="lg"><AvatarFallback>{who ? [...who][0]!.toUpperCase() : "?"}</AvatarFallback></Avatar>
+          <SettingsRowText>
+            <SettingsRowTitle className="text-ui-lg">{who || "你好"}</SettingsRowTitle>
+            <SettingsRowDescription>{who ? P.email || P.work || "" : "填写资料"}</SettingsRowDescription>
+          </SettingsRowText>
+        </LinkRow>
+      </SettingsGroup>
+      <SettingsGroup>{Object.entries(TOOLS).map(([k, v]) => row(k, v[0], () => nav({ to: `/${k}` as "/" })))}</SettingsGroup>
+      {GROUPS.map((g, i) => <SettingsGroup key={i}>{g.map((k) => row(k, PAGES[k]![0], () => nav({ to: "/settings/$page", params: { page: k } })))}</SettingsGroup>)}
+      <SettingsGroup className="logoutRow">
+        <LinkRow onClick={logout} chevron={false}><RowIcon><LogOutIcon /></RowIcon><span className="flex-1 text-destructive">退出登录</span></LinkRow>
+      </SettingsGroup>
     </>
   );
 }
 
-export function SettingsPage({ page, children }: { page: string; children?: ReactNode }) {
+export function SettingsPage({ page }: { page: string }) {
   const body: Record<string, () => ReactNode> = { profile: () => <ProfilePage />, accounts: () => <AccountsPage />, models: () => <ModelsPage />, storage: () => <StoragePage />, backup: () => <BackupPage />, security: () => <SecurityPage />, about: () => <AboutPage /> };
   if (TOOLS[page]) return <Navigate to={`/${page}` as "/"} replace />;
   return (
     <>
-      <h1 className="setTitle text-[28px] font-semibold tracking-tight">{PAGES[page]?.[0] ?? ""}</h1>
-      {PAGES[page] && <p className="setDesc mt-1 mb-6 text-sm text-muted-foreground">{PAGES[page]![2]}</p>}
-      <div className="setBody">{children ?? body[page]?.()}</div>
+      <Head title={PAGES[page]?.[0] ?? ""} desc={PAGES[page]?.[2]} />
+      {body[page]?.()}
     </>
   );
 }
@@ -69,8 +109,9 @@ const PROFILE: [string, string, string][][] = [
 function ProfilePage() {
   const S = useSettings().data;
   if (!S) return null;
+  const P = S.profile as Record<string, string>;
   const save = async (k: string, v: string) => {
-    if ((S.profile as Record<string, string>)[k] === v.trim() || (!(S.profile as Record<string, string>)[k] && !v.trim())) return;
+    if (P[k] === v.trim() || (!P[k] && !v.trim())) return;
     await api("/api/settings/profile", { method: "PUT", body: { [k]: v } });
     invalidate("settings");
     toast("已保存");
@@ -78,13 +119,13 @@ function ProfilePage() {
   return (
     <>
       {PROFILE.map((g, i) => (
-        <Group key={i} className={i ? "mt-4" : ""}>
+        <SettingsGroup key={i}>
           {g.map(([k, label, ph]) => (
-            <KV key={k} label={label} defaultValue={(S.profile as Record<string, string>)[k] ?? ""} placeholder={ph} autoComplete="off" onBlur={(e) => save(k, e.target.value)} />
+            <KV key={k} k={k} label={label}><Input aria-label={label} defaultValue={P[k] ?? ""} placeholder={ph} autoComplete="off" onBlur={(e) => save(k, e.target.value)} /></KV>
           ))}
-        </Group>
+        </SettingsGroup>
       ))}
-      <Note>只存在你自己的服务器上</Note>
+      <p className="note px-1 text-ui-sm text-muted-foreground">只存在你自己的服务器上</p>
     </>
   );
 }
@@ -94,19 +135,19 @@ export function AccountsPage() {
   const S = useSettings().data;
   const nav = useNavigate();
   if (!S) return null;
-  const open = (account: string) => nav({ to: "/settings/accounts/$account", params: { account } });
-  const rows = S.channels.map((c) => {
-    const [st, cls] = chState(c);
-    return { id: `channel:${c.id}`, label: CH[c.id].label, logo: <Logo><Icon name={c.id} size={18} /></Logo>, right: chHasToken(c) ? <Badge tone={cls as "ok"}>{st}</Badge> : <Pill>连接</Pill> };
-  });
   return (
-    <Group>
-      {rows.map((r) => (
-        <RowButton key={r.id} className="acct" data-a={r.id} onClick={() => open(r.id)}>
-          {r.logo}<Grow className="aName font-medium">{r.label}</Grow>{r.right}
-        </RowButton>
-      ))}
-    </Group>
+    <SettingsGroup>
+      {S.channels.map((c) => {
+        const [st, cls] = chState(c);
+        return (
+          <LinkRow key={c.id} data-a={`channel:${c.id}`} onClick={() => nav({ to: "/settings/accounts/$account", params: { account: `channel:${c.id}` } })}>
+            <Mark>{CH_ICON[c.id]}</Mark>
+            <span className="min-w-0 flex-1 truncate font-medium">{CH[c.id].label}</span>
+            {chHasToken(c) ? <Badge size="sm" variant={cls === "ok" ? "success" : cls === "err" ? "destructive" : cls === "warn" ? "warning" : "chip"}>{st}</Badge> : <Badge size="sm" variant="primary">连接</Badge>}
+          </LinkRow>
+        );
+      })}
+    </SettingsGroup>
   );
 }
 
@@ -118,8 +159,8 @@ export function AccountPage({ account }: { account: string }) {
   const p = kind === "provider" ? S.providers.find((x) => x.id === id) : undefined;
   return (
     <>
-      <h1 className="setTitle mb-6 text-[28px] font-semibold tracking-tight">{c ? CH[c.id].label : p?.label}</h1>
-      <div className="setBody">{c ? <ChannelForm c={c} /> : p ? <ProviderForm p={p} S={S} /> : <div className="empty py-10 text-center text-sm text-muted-foreground">找不到这一项</div>}</div>
+      <Head title={c ? CH[c.id].label : p?.label ?? ""} />
+      {c ? <ChannelForm c={c} /> : p ? <ProviderForm p={p} S={S} /> : <p className="text-ui text-muted-foreground">找不到这一项</p>}
     </>
   );
 }
@@ -132,7 +173,7 @@ function ChannelForm({ c }: { c: Channel }) {
   const [busy, setBusy] = useState(false);
   const [m, setM] = useState<Flash>(c.status.state === "error" ? { text: c.status.error ?? "", ok: false } : null);
   const on = has && c.enabled;
-  // The button saves tokens and connects; the toggle only pauses or resumes a channel that already has them.
+  // The button saves tokens and connects; the switch only pauses or resumes a channel that already has them.
   const save = async (enabled: boolean, withTokens: boolean) => {
     const body: Record<string, unknown> = { enabled };
     if (withTokens) for (const [k, v] of Object.entries(vals)) if (v.trim()) body[k] = v.trim();
@@ -148,23 +189,28 @@ function ChannelForm({ c }: { c: Channel }) {
   };
   return (
     <>
-      <Group>
-        <Row>
-          <Logo><Icon name={c.id} size={18} /></Logo>
-          <Grow className="flex items-center gap-2 font-medium">{meta.label} <Badge tone={cls as "ok"}>{st}</Badge></Grow>
-          {has && <Toggle className={on && c.status.state !== "connected" ? "pending" : ""} checked={on} label={`开关 ${meta.label}`} onChange={(v) => save(v, false)} />}
-        </Row>
+      <SettingsGroup>
+        <SettingsRow>
+          <Mark>{CH_ICON[c.id]}</Mark>
+          <SettingsRowText><SettingsRowTitle className="flex items-center gap-2">{meta.label}<Badge size="sm" variant={cls === "ok" ? "success" : cls === "err" ? "destructive" : cls === "warn" ? "warning" : "chip"}>{st}</Badge></SettingsRowTitle></SettingsRowText>
+          {has && <Switch checked={on} aria-label={`开关 ${meta.label}`} onCheckedChange={(v) => save(v, false)} />}
+        </SettingsRow>
         {Object.entries(meta.fields).map(([f, label]) => {
           const v = c.fields[f] ?? { set: false }, now = v.last4 ? `已保存 ····${v.last4}` : v.fromEnv ? "配置文件里已有" : "";
           return (
-            <Field key={f} label={<>{label} {now && <Badge>{now}</Badge>}</>} type="password" autoComplete="off" placeholder={now ? "留空就不改" : "粘贴到这里"} value={vals[f] ?? ""} onChange={(v) => setVals({ ...vals, [f]: v })} />
+            <SettingsRow key={f}>
+              <Field className="w-full">
+                <FieldLabel>{label}{now && <Badge size="sm">{now}</Badge>}</FieldLabel>
+                <PasswordInput name={f} autoComplete="off" placeholder={now ? "留空就不改" : "粘贴到这里"} value={vals[f] ?? ""} onChange={(e) => setVals({ ...vals, [f]: e.target.value })} />
+              </Field>
+            </SettingsRow>
           );
         })}
-        <Pad><Btns><Btn disabled={busy} onClick={() => save(true, true)}>连接</Btn><Msg m={m} /></Btns></Pad>
-      </Group>
-      <SectionTitle>怎么获取</SectionTitle>
-      <Group><Pad><Steps items={meta.steps} /></Pad></Group>
-      <Note>连上后，到「账号安全」绑定你自己</Note>
+        <Footer m={m}><Button disabled={busy} onClick={() => save(true, true)}>连接</Button></Footer>
+      </SettingsGroup>
+      <Section title="怎么获取" note="连上后，到「账号安全」绑定你自己">
+        <SettingsRow><Steps items={meta.steps} /></SettingsRow>
+      </Section>
     </>
   );
 }
@@ -193,46 +239,64 @@ function ProviderForm({ p, S }: { p: Provider; S: Settings }) {
     invalidate("settings");
   };
   return (
-    <>
-      <Group>
-        <Row>
-          <Mono label={p.label} />
-          <Grow className="flex items-center gap-2 font-medium">{p.label} {p.key.set ? <Badge tone="ok">已添加</Badge> : p.fromEnv ? <Badge tone="ok">配置文件里已有</Badge> : <Badge>未添加</Badge>}</Grow>
-          {p.key.set && <Btn kind="danger" onClick={del}>删除</Btn>}
-        </Row>
-        <Field label="密钥（API Key）" hint={p.hint} type="password" autoComplete="off" placeholder={p.key.set ? `已保存 ····${p.key.last4}，粘贴新的可替换` : "粘贴到这里"} value={key} onChange={setKey} />
-        <Pad><Btns><Btn onClick={save}>保存</Btn><Btn kind="secondary" disabled={!ready(p)} onClick={test}>试一下</Btn><Msg m={m} /></Btns></Pad>
-      </Group>
-      <Note>加密保存，只显示末 4 位</Note>
-    </>
+    <Section note="加密保存，只显示末 4 位">
+      <SettingsRow>
+        <Mark>{PROVIDER_ICON[p.id] ?? <BotIcon />}</Mark>
+        <SettingsRowText><SettingsRowTitle className="flex items-center gap-2">{p.label}{p.key.set ? okBadge("已添加") : p.fromEnv ? okBadge("配置文件里已有") : <Badge size="sm">未添加</Badge>}</SettingsRowTitle></SettingsRowText>
+        {p.key.set && <Button variant="ghost" size="sm" onClick={del}>删除</Button>}
+      </SettingsRow>
+      <SettingsRow>
+        <Field className="w-full">
+          <FieldLabel>密钥（API Key）</FieldLabel>
+          <PasswordInput autoComplete="off" placeholder={p.key.set ? `已保存 ····${p.key.last4}，粘贴新的可替换` : "粘贴到这里"} value={key} onChange={(e) => setKey(e.target.value)} />
+          <FieldDescription>{p.hint}</FieldDescription>
+        </Field>
+      </SettingsRow>
+      <Footer m={m}>
+        <Button variant="secondary" disabled={!ready(p)} onClick={test}>试一下</Button>
+        <Button onClick={save}>保存</Button>
+      </Footer>
+    </Section>
   );
 }
 
-function ModelSelect({ label, value, usable, onChange }: { label: string; value: { provider: string; modelId: string }; usable: Provider[]; onChange: (v: { provider: string; modelId: string }) => void }) {
+type Ref = { provider: string; modelId: string };
+function ModelSelect({ label, value, usable, onChange }: { label: string; value: Ref; usable: Provider[]; onChange: (v: Ref) => void }) {
   const models = useModels(value.provider).data ?? [];
   useEffect(() => {
     if (models.length && !models.some((m) => m.id === value.modelId)) onChange({ ...value, modelId: models[0]!.id });
   }, [models]);
+  const names = useMemo(() => Object.fromEntries(models.map((m) => [m.id, m.name])), [models]);
   return (
-    <Pad>
-      <label className="px-1 text-xs font-medium text-muted-foreground">{label}</label>
-      <div className="row2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <Pick value={value.provider} onChange={(v) => onChange({ provider: v, modelId: "" })} options={usable.map((p) => ({ value: p.id, label: p.label }))} label={`${label} · 供应商`} />
-        <Pick value={value.modelId} onChange={(v) => onChange({ ...value, modelId: v })} options={models.map((m) => ({ value: m.id, label: m.name }))} label={`${label} · 模型`} search />
+    <SettingsRow>
+      <SettingsRowText className="basis-40"><SettingsRowTitle>{label}</SettingsRowTitle></SettingsRowText>
+      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-5">
+        <Select items={usable.map((p) => ({ value: p.id, label: p.label }))} value={value.provider} onValueChange={(v) => v && onChange({ provider: v as string, modelId: "" })}>
+          <SelectTrigger aria-label={`${label} · 供应商`} className="sm:col-span-2"><SelectValue placeholder="选择" /></SelectTrigger>
+          <SelectContent>{usable.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}</SelectContent>
+        </Select>
+        <Combobox items={models.map((m) => m.id)} itemToStringLabel={(id: string) => names[id] ?? id} value={value.modelId || null} onValueChange={(v) => v && onChange({ ...value, modelId: v })}>
+          <ComboboxTrigger aria-label={`${label} · 模型`} className="sm:col-span-3"><ComboboxValue placeholder="选择模型" /></ComboboxTrigger>
+          <ComboboxContent>
+            <ComboboxSearch placeholder="搜索模型" aria-label="搜索模型" />
+            <ComboboxEmpty>没有找到</ComboboxEmpty>
+            <ComboboxList>{(id: string) => <ComboboxItem key={id} value={id}>{names[id] ?? id}</ComboboxItem>}</ComboboxList>
+          </ComboboxContent>
+        </Combobox>
       </div>
-    </Pad>
+    </SettingsRow>
   );
 }
 function ModelsPage() {
   const S = useSettings().data;
   const nav = useNavigate();
-  const [main, setMain] = useState<{ provider: string; modelId: string } | null>(null);
-  const [small, setSmall] = useState<{ provider: string; modelId: string } | null>(null);
+  const [main, setMain] = useState<Ref | null>(null);
+  const [small, setSmall] = useState<Ref | null>(null);
   const [m, setM] = useState<Flash>(null);
   const usable = S?.providers.filter(ready) ?? [];
   useEffect(() => {
     if (!S || !usable.length) return;
-    const fix = (r: { provider: string; modelId: string }) => (usable.some((p) => p.id === r.provider) ? r : { provider: usable[0]!.id, modelId: "" });
+    const fix = (r: Ref) => (usable.some((p) => p.id === r.provider) ? r : { provider: usable[0]!.id, modelId: "" });
     setMain((x) => x ?? fix(S.model));
     setSmall((x) => x ?? fix(S.smallModel));
   }, [S]);
@@ -246,23 +310,25 @@ function ModelsPage() {
   };
   return (
     <>
-      <SectionTitle>服务商</SectionTitle>
-      <Group>
+      <Section title="服务商">
         {S.providers.map((p) => (
-          <RowButton key={p.id} className="acct" data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
-            <Mono label={p.label} /><Grow><span className="aName font-medium">{p.label}</span>{S.model.provider === p.id && ready(p) && <Sub>正在用</Sub>}</Grow>
-            {ready(p) ? <Badge tone="ok">已添加</Badge> : <Pill>添加</Pill>}
-          </RowButton>
+          <LinkRow key={p.id} data-a={`provider:${p.id}`} onClick={() => nav({ to: "/settings/models/$account", params: { account: `provider:${p.id}` } })}>
+            <Mark>{PROVIDER_ICON[p.id] ?? <BotIcon />}</Mark>
+            <SettingsRowText>
+              <SettingsRowTitle>{p.label}</SettingsRowTitle>
+              {S.model.provider === p.id && ready(p) && <SettingsRowDescription>正在用</SettingsRowDescription>}
+            </SettingsRowText>
+            {ready(p) ? okBadge("已添加") : <Badge size="sm" variant="primary">添加</Badge>}
+          </LinkRow>
         ))}
-      </Group>
-      <SectionTitle>用哪个</SectionTitle>
+      </Section>
       {usable.length ? main && small && (
-        <Group className="overflow-visible">
+        <Section title="用哪个" id="modelForm">
           <ModelSelect label="聊天" value={main} usable={usable} onChange={setMain} />
           <ModelSelect label="后台（整理记忆、更新面板）" value={small} usable={usable} onChange={setSmall} />
-          <Pad><Btns><Btn onClick={save}>保存</Btn><Msg m={m} /></Btns></Pad>
-        </Group>
-      ) : <Note>先添加一家服务商</Note>}
+          <Footer m={m}><Button id="modelSave" onClick={save}>保存</Button></Footer>
+        </Section>
+      ) : <p className="note px-1 text-ui-sm text-muted-foreground">先添加一家服务商</p>}
     </>
   );
 }
@@ -309,23 +375,26 @@ function StoragePage() {
   const now = st.secret.last4 ? `已保存 ····${st.secret.last4}` : st.fromEnv ? "配置文件里已有" : "";
   return (
     <>
-      <Group>
-        <Row data-storage={st.kind}>
-          <span className="text-muted-foreground"><Icon name="storage" /></span>
-          <Grow className="font-medium">{st.kind === "s3" ? st.s3?.bucket : "本机"}</Grow>
-          <Badge tone={st.kind === "s3" ? "ok" : ""}>{st.kind === "s3" ? "S3" : "默认"}</Badge>
-          {st.kind === "s3" && !st.fromEnv && <Btn kind="danger" disabled={busy} onClick={() => save(true)}>改回本机</Btn>}
-        </Row>
-      </Group>
-      <SectionTitle>存到 S3</SectionTitle>
-      <Group id="s3Form">
+      <SettingsGroup>
+        <SettingsRow data-storage={st.kind}>
+          <RowIcon><ServerIcon /></RowIcon>
+          <SettingsRowText><SettingsRowTitle>{st.kind === "s3" ? st.s3?.bucket : "本机"}</SettingsRowTitle></SettingsRowText>
+          <SettingsRowControl>
+            <Badge size="sm" variant={st.kind === "s3" ? "success" : "chip"}>{st.kind === "s3" ? "S3" : "默认"}</Badge>
+            {st.kind === "s3" && !st.fromEnv && <Button variant="ghost" size="sm" disabled={busy} onClick={() => save(true)}>改回本机</Button>}
+          </SettingsRowControl>
+        </SettingsRow>
+      </SettingsGroup>
+      <Section title="存到 S3" id="s3Form" note="支持 Cloudflare R2、AWS S3、MinIO">
         {S3_FIELDS.map(([k, label, ph]) => (
-          <KV key={k} label={label} name={k} value={vals[k] ?? ""} placeholder={ph} autoComplete="off" onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+          <KV key={k} k={k} label={label}><Input aria-label={label} name={k} value={vals[k] ?? ""} placeholder={ph} autoComplete="off" onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></KV>
         ))}
-        <KV label="密钥" name="secret" type="password" value={secret} placeholder={now ? `${now}，留空不改` : "Secret Access Key"} autoComplete="off" onChange={(e) => setSecret(e.target.value)} />
-        <Pad><Btns><Btn disabled={busy} onClick={() => save()}>保存</Btn><Btn kind="secondary" disabled={busy} onClick={test}>试一下</Btn><Msg m={m} /></Btns></Pad>
-      </Group>
-      <Note>支持 Cloudflare R2、AWS S3、MinIO</Note>
+        <KV k="secret" label="密钥"><PasswordInput aria-label="密钥" name="secret" value={secret} placeholder={now ? `${now}，留空不改` : "Secret Access Key"} autoComplete="off" onChange={(e) => setSecret(e.target.value)} /></KV>
+        <Footer m={m}>
+          <Button variant="secondary" disabled={busy} onClick={test}>试一下</Button>
+          <Button disabled={busy} onClick={() => save()}>保存</Button>
+        </Footer>
+      </Section>
     </>
   );
 }
@@ -353,31 +422,36 @@ function BackupPage() {
   const last = b.last;
   return (
     <>
-      <Group>
-        <Row><span className="text-muted-foreground"><Icon name="backup" /></span><Grow className="font-medium">自动备份</Grow><Toggle checked={b.enabled} label="自动备份" onChange={toggle} /></Row>
-        <Row id="lastBackup">
-          <Grow>上次备份<Sub>{last ? (last.ok ? `${when(last.at)} · ${size(last.bytes)}` : `失败：${last.error}`) : "还没有"}</Sub></Grow>
-          <Badge tone={last?.ok ? "ok" : last ? "err" : ""}>{b.storage === "s3" ? "S3" : "本机"}</Badge>
-        </Row>
-        <Pad><Btns><Btn disabled={busy} onClick={run}>立即备份</Btn><Msg m={m} /></Btns></Pad>
-      </Group>
-      <Note>每天 4 点备份到「存储」里设的位置，保留最近 {b.keep} 份</Note>
-      <SectionTitle>恢复码</SectionTitle>
-      <Group>
-        <Row><code className="grow min-w-0 flex-1 break-all font-mono text-[13px] tracking-wider" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
-          {code ? <IconBtn icon="copy" label="复制" size={16} onClick={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))} />
-            : <Btn kind="secondary" size="sm" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</Btn>}
-        </Row>
-      </Group>
-      <Note>备份是加密的，没有恢复码打不开。请抄下来，存在别处</Note>
+      <Section note={`每天 4 点备份到「存储」里设的位置，保留最近 ${b.keep} 份`}>
+        <SettingsRow render={<label />}>
+          <RowIcon><HistoryIcon /></RowIcon>
+          <SettingsRowText><SettingsRowTitle>自动备份</SettingsRowTitle></SettingsRowText>
+          <Switch checked={b.enabled} aria-label="自动备份" onCheckedChange={toggle} />
+        </SettingsRow>
+        <SettingsRow id="lastBackup">
+          <SettingsRowText>
+            <SettingsRowTitle>上次备份</SettingsRowTitle>
+            <SettingsRowDescription>{last ? (last.ok ? `${when(last.at)} · ${size(last.bytes)}` : `失败：${last.error}`) : "还没有"}</SettingsRowDescription>
+          </SettingsRowText>
+          <Badge size="sm" variant={last?.ok ? "success" : last ? "destructive" : "chip"}>{b.storage === "s3" ? "S3" : "本机"}</Badge>
+        </SettingsRow>
+        <Footer m={m}><Button disabled={busy} onClick={run}>立即备份</Button></Footer>
+      </Section>
+      <Section title="恢复码" note="备份是加密的，没有恢复码打不开。请抄下来，存在别处">
+        <SettingsRow>
+          <code className="min-w-0 flex-1 font-mono text-ui tracking-wider break-all" id="recoveryCode">{code ?? "••••-••••-••••-••••-••••-••••"}</code>
+          {code ? <ToolbarButton label="复制" onClick={() => navigator.clipboard?.writeText(code).then(() => toast("已复制"))}><CopyIcon /></ToolbarButton>
+            : <Button variant="secondary" size="sm" onClick={async () => setCode((await api<{ code: string }>("/api/settings/backup/code")).code)}>显示</Button>}
+        </SettingsRow>
+      </Section>
       {b.list.length > 0 && (
-        <>
-          <SectionTitle>最近的备份 · {b.list.length}</SectionTitle>
-          <Group id="backupList">{b.list.slice(0, 5).map((x) => <Row key={x.key}><Grow className="tabular-nums">{when(x.at)}</Grow></Row>)}</Group>
-        </>
+        <Section title={`最近的备份 · ${b.list.length}`} id="backupList">
+          {b.list.slice(0, 5).map((x) => <SettingsRow key={x.key}><span className="tabular-nums">{when(x.at)}</span></SettingsRow>)}
+        </Section>
       )}
-      <SectionTitle>怎么恢复</SectionTitle>
-      <Group><Pad><Steps items={["新机器上放好 Tomo，设置好同一个存储", <>运行 <Code>bun run src/restore.ts --code 你的恢复码</Code></>, "启动 Tomo"]} /></Pad></Group>
+      <Section title="怎么恢复">
+        <SettingsRow><Steps items={["新机器上放好 Tomo，设置好同一个存储", <>运行 <Code>bun run src/restore.ts --code 你的恢复码</Code></>, "启动 Tomo"]} /></SettingsRow>
+      </Section>
     </>
   );
 }
@@ -416,36 +490,40 @@ function SecurityPage() {
   };
   return (
     <>
-      <SectionTitle>绑定的账号</SectionTitle>
-      <Group>
+      <Section title="绑定的账号" note="绑定后，只有你能私聊 Tomo">
         {S.owners.length ? S.owners.map((o) => (
-          <Row key={o}><Grow><Code>{o}</Code></Grow>{env.has(o) ? <Badge>配置文件</Badge> : <Btn kind="danger" onClick={async () => { await api(`/api/settings/owners/${enc(o)}`, { method: "DELETE" }); invalidate("settings"); }}>解绑</Btn>}</Row>
-        )) : <Row className="text-muted-foreground">还没有绑定</Row>}
-        <Pad>
-          <Btns><Btn kind="secondary" onClick={async () => setCode((await api("/api/settings/pair", { method: "POST" })).code)}>获取绑定码</Btn></Btns>
-          {code && <div className="flex flex-col items-center gap-2 py-3"><div className="code font-mono text-4xl font-semibold tracking-[0.3em]">{code}</div><p className="text-center text-xs text-muted-foreground">10 分钟内私聊机器人发送 <Code>/pair {code}</Code></p></div>}
-        </Pad>
-      </Group>
-      <Note>绑定后，只有你能私聊 Tomo</Note>
-      <SectionTitle>登录密码</SectionTitle>
-      <Group>
-        <Field label="当前密码" type="password" autoComplete="current-password" value={cur} onChange={setCur} />
-        <Field label="新密码（至少 8 位）" type="password" autoComplete="new-password" value={nxt} onChange={setNxt} />
-        <Pad><Btns><Btn onClick={change}>修改</Btn><Msg m={m} /></Btns></Pad>
-      </Group>
-      <Note>改完后，其他设备要重新登录</Note>
+          <SettingsRow key={o}>
+            <SettingsRowText><Code>{o}</Code></SettingsRowText>
+            {env.has(o) ? <Badge size="sm">配置文件</Badge> : <Button variant="ghost" size="sm" onClick={async () => { await api(`/api/settings/owners/${enc(o)}`, { method: "DELETE" }); invalidate("settings"); }}>解绑</Button>}
+          </SettingsRow>
+        )) : <SettingsRow><SettingsRowDescription>还没有绑定</SettingsRowDescription></SettingsRow>}
+        {code && (
+          <SettingsRow className="flex-col">
+            <div className="code font-mono text-4xl font-semibold tracking-widest tabular-nums">{code}</div>
+            <p className="text-center text-ui-sm text-muted-foreground">10 分钟内私聊机器人发送 <Code>/pair {code}</Code></p>
+          </SettingsRow>
+        )}
+        <SettingsGroupFooter><Button variant="secondary" onClick={async () => setCode((await api("/api/settings/pair", { method: "POST" })).code)}>获取绑定码</Button></SettingsGroupFooter>
+      </Section>
+      <Section title="登录密码" note="改完后，其他设备要重新登录">
+        <SettingsRow><Field className="w-full"><FieldLabel>当前密码</FieldLabel><PasswordInput autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></Field></SettingsRow>
+        <SettingsRow><Field className="w-full"><FieldLabel>新密码（至少 8 位）</FieldLabel><PasswordInput autoComplete="new-password" value={nxt} onChange={(e) => setNxt(e.target.value)} /></Field></SettingsRow>
+        <Footer m={m}><Button onClick={change}>修改</Button></Footer>
+      </Section>
     </>
   );
 }
 
 function AboutPage() {
   return (
-    <>
-      <Group>
-        <Row><span className="text-primary"><Icon name="sparkles" /></span><Grow className="font-medium">Tomo</Grow><Val>你的私人助手</Val></Row>
-        <RowLink href="https://github.com/QinYangWang/tomo"><Grow>源代码</Grow><Arrow /></RowLink>
-      </Group>
-      <Note>备份时，复制整个 data 文件夹</Note>
-    </>
+    <Section note="备份时，复制整个 data 文件夹">
+      <SettingsRow>
+        <IconChip tone="primary" size="sm"><SparklesIcon /></IconChip>
+        <SettingsRowText><SettingsRowTitle>Tomo</SettingsRowTitle></SettingsRowText>
+        <Val>你的私人助手</Val>
+      </SettingsRow>
+      <LinkRow href="https://github.com/QinYangWang/tomo"><span className="flex-1">源代码</span></LinkRow>
+    </Section>
   );
 }
+
