@@ -64,6 +64,12 @@ type ThreadListItemProps = Omit<React.ComponentProps<"button">, "title"> & {
    * keyboard focus, while active or while a menu they opened is open; always shown on touch screens.
    */
   actions?: React.ReactNode
+  /**
+   * Props for the row button. Without `actions` the button is the root, so this merges with the rest.
+   * With `actions`, `className`, `id`, `style` and `data-*` go to the list item and everything else
+   * (`onClick`, `aria-*`, `disabled`) to the button; use this for anything else the button needs.
+   */
+  buttonProps?: Omit<React.ComponentProps<"button">, "children">
 }
 
 /**
@@ -85,12 +91,21 @@ function ThreadListItem({
   description,
   meta,
   actions,
+  buttonProps,
   className,
   ...props
 }: ThreadListItemProps) {
   const { labels } = useLocale()
   const refs = repo || pr || branch
   const hasActions = actions != null && actions !== false
+  // With actions the row is a list item around the button: identity and layout go to the item.
+  const itemProps: Record<string, unknown> = {}
+  const rowProps: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(props)) {
+    if (hasActions && (k === "id" || k === "style" || k.startsWith("data-"))) itemProps[k] = v
+    else rowProps[k] = v
+  }
+  const { className: buttonClassName, ...restButtonProps } = buttonProps ?? {}
   const row = (
     <button
       type="button"
@@ -104,9 +119,11 @@ function ThreadListItem({
         // Room for the actions: always without `meta`, on touch screens (actions stay visible) with it.
         hasActions && (meta != null && meta !== false ? "pointer-coarse:pe-9" : "pe-9"),
         hasActions && "group-hover/thread-item:bg-secondary group-data-active/thread-item:bg-foreground/6",
-        !hasActions && className
+        !hasActions && className,
+        buttonClassName
       )}
-      {...props}
+      {...rowProps}
+      {...restButtonProps}
     >
       <span className="flex w-full min-w-0 items-center gap-2">
         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground group-data-active/thread:text-foreground [&_svg]:size-3.5">
@@ -161,6 +178,7 @@ function ThreadListItem({
   if (!hasActions) return row
   return (
     <div
+      {...itemProps}
       role="listitem"
       data-slot="thread-list-item"
       data-active={active || undefined}

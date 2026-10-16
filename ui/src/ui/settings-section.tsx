@@ -4,7 +4,7 @@ import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
-import { ChevronRightIcon } from "@/components/icons"
+import { ChevronRightIcon, ExternalLinkIcon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 /*
@@ -117,9 +117,41 @@ function SettingsRow({ className, render, interactive = false, detail, chevron =
   return element
 }
 
-/** An interactive `SettingsRow` that renders a link by default. Pass `render={<Link href="…" />}` for a router link. */
-function SettingsRowLink({ render, ...props }: Omit<SettingsRowProps, "interactive"> & { href?: string }) {
-  return <SettingsRow interactive render={render ?? <a />} {...props} />
+type SettingsRowLinkProps = useRender.ComponentProps<"a"> & {
+  /** Muted text before the trailing icon. */
+  detail?: React.ReactNode
+  /** Trailing chevron. */
+  chevron?: boolean
+  /** Shows an external-link icon instead of the chevron, for pages that leave the app. */
+  external?: boolean
+}
+
+/**
+ * An interactive `SettingsRow` that renders a link by default and takes every anchor attribute
+ * (`href`, `target`, `rel`, `download`). `target="_blank"` without `rel` gets `rel="noopener noreferrer"`.
+ * Pass `render={<Link href="…" />}` for a router link.
+ */
+function SettingsRowLink({ render, target, rel, external = false, chevron = true, detail, children, ...props }: SettingsRowLinkProps) {
+  const safeRel = rel ?? (target === "_blank" ? "noopener noreferrer" : undefined)
+  const rowProps = { target, rel: safeRel, ...props } as Omit<SettingsRowProps, "interactive" | "render">
+  if (!external) {
+    return (
+      <SettingsRow interactive render={(render ?? <a />) as SettingsRowProps["render"]} detail={detail} chevron={chevron} {...rowProps}>
+        {children}
+      </SettingsRow>
+    )
+  }
+  return (
+    <SettingsRow interactive render={(render ?? <a />) as SettingsRowProps["render"]} chevron={false} {...rowProps}>
+      {children}
+      {detail != null && detail !== false && (
+        <span data-slot="settings-row-detail" className="min-w-0 shrink truncate text-ui text-muted-foreground">
+          {detail}
+        </span>
+      )}
+      <ExternalLinkIcon aria-hidden data-slot="settings-row-external" className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+    </SettingsRow>
+  )
 }
 
 function SettingsRowText({ className, ...props }: React.ComponentProps<"div">) {
@@ -225,4 +257,4 @@ export {
   SettingsNav,
   SettingsNavItem,
 }
-export type { SettingsNavItemProps, SettingsRowProps }
+export type { SettingsNavItemProps, SettingsRowProps, SettingsRowLinkProps }

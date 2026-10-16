@@ -296,6 +296,11 @@
   code, kbd, pre, samp {
     font-feature-settings: normal;
     }
+  *, ::before, ::after {
+    --frame-r: 0px;
+    --frame-p: 0px;
+    --frame-b: 0px;
+    }
 }
 
 @utility scrollbar-thin {
@@ -503,21 +508,6 @@
     --shadow-lg: 0 0 0 1px color-mix(in oklab, #ffffff12, #3a3a3a 25%), 0 2px 3px -2px #00000026, 0 3px 8px -2px #0006, 0 4px 12px -4px #00000080;
     }
 }
-  @property --frame-r {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-}
-  @property --frame-p {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-}
-  @property --frame-b {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-}
 
 @utility frame-* {
     --frame-r: --value(--radius-*, [length]);
@@ -575,19 +565,4 @@
     --frame-r: var(--frame-inner-1, var(--radius-lg));
     border-radius: var(--frame-inner-1, var(--radius-lg));
     --frame-inner-2: max(calc(var(--frame-r) - var(--frame-p) - var(--frame-b)), min(2px, var(--frame-r)));
-}
-  @property --frame-r {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-}
-  @property --frame-p {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-}
-  @property --frame-b {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
 }

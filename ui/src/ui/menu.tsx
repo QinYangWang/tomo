@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { useDirection } from "@base-ui/react/direction-provider"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
@@ -144,6 +142,7 @@ function MenuShortcut({ className, ...props }: React.ComponentProps<"span">) {
       data-slot="menu-shortcut"
       // Key glyphs keep their order in right-to-left text.
       dir="ltr"
+      // design-check-ignore tracking -- shortcut glyphs are spaced wide (rule 11 allows it)
       className={cn("ms-auto ps-4 font-sans text-ui-xs tracking-widest text-muted-foreground/72", className)}
       {...props}
     />

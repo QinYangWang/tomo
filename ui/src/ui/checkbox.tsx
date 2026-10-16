@@ -1,3 +1,5 @@
+"use client"
+
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -39,7 +41,7 @@ function Checkbox({ className, size: sizeProp, ...props }: CheckboxPrimitive.Roo
         "focus-visible:ring-2 focus-visible:ring-ring/50",
         // dark:bg-input/32 above is as specific as data-checked:bg-primary and sorts after it, so the dark checked fill is restated.
         "data-checked:bg-primary data-checked:shadow-primary data-indeterminate:bg-primary data-indeterminate:shadow-primary dark:data-checked:bg-primary dark:data-indeterminate:bg-primary",
-        "data-invalid:shadow-[inset_0_0_0_1px_var(--destructive)] data-disabled:cursor-not-allowed data-disabled:opacity-64",
+        "data-invalid:shadow-[inset_0_0_0_1px_var(--destructive)] data-disabled:cursor-not-allowed data-disabled:opacity-64 data-readonly:cursor-default",
         className
       )}
       {...props}

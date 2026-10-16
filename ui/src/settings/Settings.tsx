@@ -523,7 +523,7 @@ function AboutPage() {
         <SettingsRowText><SettingsRowTitle>Tomo</SettingsRowTitle></SettingsRowText>
         <Val>你的私人助手</Val>
       </SettingsRow>
-      <SettingsRowLink render={<a href="https://github.com/QinYangWang/tomo" target="_blank" rel="noopener" />}><span className="min-w-0 flex-1 truncate">源代码</span></SettingsRowLink>
+      <SettingsRowLink href="https://github.com/QinYangWang/tomo" target="_blank" external><span className="min-w-0 flex-1 truncate">源代码</span></SettingsRowLink>
     </Section>
   );
 }

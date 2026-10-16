@@ -206,7 +206,7 @@ function ResponseMarkdown({
               {block.items.map((item, ii) => (
                 <li key={ii} className={item.checked !== undefined ? "task-list-item" : undefined}>
                   {item.checked !== undefined && (
-                    <Checkbox size="sm" checked={item.checked} readOnly tabIndex={-1} aria-label={item.text} className="me-2 translate-y-0.5" />
+                    <Checkbox size="sm" checked={item.checked} readOnly tabIndex={-1} aria-label={item.text} className="pointer-events-none me-2 translate-y-0.5" />
                   )}
                   {renderInline(item.text, sources, `${k}-${ii}`)}
                   {last && ii === block.items.length - 1 && tail}

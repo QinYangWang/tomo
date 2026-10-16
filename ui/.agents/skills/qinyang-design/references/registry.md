@@ -5,7 +5,7 @@
 Add the namespace to `components.json`, then install the theme and any item:
 
 ```json
-{ "registries": { "@qinyang": "http://127.0.0.1:8833/r/{name}.json" } }
+{ "registries": { "@qinyang": "https://qinyangwang.github.io/ui/r/{name}.json" } }
 ```
 
 ```bash
@@ -25,7 +25,8 @@ npx skills add QinYangWang/ui --skill qinyang-design   # agent skill (rules, ref
 npx shadcn@latest add @qinyang/design-skill            # same files through the shadcn CLI
 ```
 
-The registry copy lands in `.agents/skills/qinyang-design/`. Run the check from the project root:
+The registry copy lands in `.agents/skills/qinyang-design/` at the project root, also in projects with `src/`.
+Run the check from the project root:
 `node .agents/skills/qinyang-design/scripts/check.mjs`.
 
 ## Upgrading
@@ -40,7 +41,8 @@ node scripts/qinyang-upgrade-check.mjs          # report; exit 1 when something 
 node scripts/qinyang-upgrade-check.mjs --fix    # also cleans the stylesheet
 ```
 
-It finds the removed accent ramp, broken wide-gamut overrides, repeated `@property` rules, themes without
+It finds the removed accent ramp, broken wide-gamut overrides, `@property` rules left by theme 2.2 and earlier
+(the CLI appended a copy on every reinstall; theme 2.3 ships none, so reinstalls are idempotent), themes without
 the 16px cap or with `--radius` above 1rem, and source that still uses removed classes. The design check
 runs it when it is installed.
 
